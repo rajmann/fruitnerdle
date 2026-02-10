@@ -164,7 +164,7 @@ export default function HelpModal({ onClose }: HelpModalProps) {
             <h3 className="font-semibold text-led-green text-base mb-1">Re-spin</h3>
             <p>
               Stuck? Pull the lever again for a new starting position. Same puzzle, different
-              starting dials.
+              starting dials. A re-spin counts as one move.
             </p>
           </section>
 

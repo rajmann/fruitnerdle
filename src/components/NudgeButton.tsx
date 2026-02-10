@@ -25,7 +25,7 @@ export default function NudgeButton({ direction, disabled, accent = 'green', onC
           : cn(
               'active:scale-90 active:shadow-none cursor-pointer',
               'shadow-[0_3px_5px_rgba(0,0,0,0.4),_0_1px_2px_rgba(0,0,0,0.3)]',
-              isGreen ? 'shadow-[0_3px_5px_rgba(0,0,0,0.4),_0_0_10px_rgba(0,255,136,0.3)]' : 'shadow-[0_3px_5px_rgba(0,0,0,0.4),_0_0_10px_rgba(239,68,68,0.3)]',
+              isGreen ? 'shadow-[0_3px_5px_rgba(0,0,0,0.4),_0_0_10px_rgba(0,255,136,0.3)]' : 'shadow-[0_3px_5px_rgba(0,0,0,0.4),_0_0_12px_rgba(248,113,113,0.4)]',
             ),
       )}
       style={{ background: `linear-gradient(to bottom, #969aa2, #848890)` }}
@@ -34,13 +34,13 @@ export default function NudgeButton({ direction, disabled, accent = 'green', onC
       <Icon
         className={cn(
           'w-5 h-5 transition-all duration-200',
-          disabled ? 'text-slate-600' : isGreen ? 'text-led-green' : 'text-red-500',
+          disabled ? 'text-slate-600' : isGreen ? 'text-led-green' : 'text-red-400',
         )}
         strokeWidth={3}
         style={disabled ? undefined : {
           filter: isGreen
             ? 'drop-shadow(0 0 1px #1e293b) drop-shadow(0 0 1px #1e293b) drop-shadow(0 0 4px #00ff88)'
-            : 'drop-shadow(0 0 1px #1e293b) drop-shadow(0 0 1px #1e293b) drop-shadow(0 0 4px #ef4444)',
+            : 'drop-shadow(0 0 1px #1e293b) drop-shadow(0 0 1px #1e293b) drop-shadow(0 0 6px #f87171)',
         }}
       />
     </button>
