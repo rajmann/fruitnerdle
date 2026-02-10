@@ -63,7 +63,7 @@ export default function Lever({ phase, onSpin }: LeverProps) {
       {/* Ball handle - higher z-index, draggable downward */}
       <motion.div
         className="relative z-20"
-        style={{ y: dragY, x: 2, marginTop: '-20px' }}
+        style={{ y: dragY, x: 1, marginTop: '-20px' }}
         drag={canSpin && !pulled ? 'y' : false}
         dragConstraints={{ top: 0, bottom: 40 }}
         dragElastic={0}

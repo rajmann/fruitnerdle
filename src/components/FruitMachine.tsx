@@ -427,7 +427,7 @@ export default function FruitMachine() {
     : 0;
 
   return (
-    <div className="min-h-screen flex flex-col sm:items-center px-2 sm:px-6 py-4 sm:py-6 bg-gradient-to-b from-slate-900 via-machine-body to-slate-900">
+    <div className="min-h-screen flex flex-col sm:items-center px-2 sm:px-6 py-1 sm:py-3 bg-gradient-to-b from-slate-900 via-machine-body to-slate-900">
       <div className="flex flex-row justify-center w-full">
         {/* Left desktop ad */}
         <div id="nerdlegame_D_x1" className="desktopSideAd mr-2 ml-2" />
@@ -654,7 +654,7 @@ export default function FruitMachine() {
                         isLocked={lockedDials[i]}
                         overrideDisplay={celebDisplay}
                         onTap={handleDialClick}
-                        onSwipe={(dir) => nudge(i, dir)}
+                        onSwipe={(dir) => { if (phase === 'ready') { handleDialClick(); } else { nudge(i, dir); } }}
                       />
                     );
                   })}
