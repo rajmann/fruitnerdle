@@ -18,7 +18,7 @@ export default function NudgeButton({ direction, disabled, accent = 'green', onC
       disabled={disabled}
       className={cn(
         'w-full flex items-center justify-center rounded transition-all duration-200',
-        'h-7 sm:h-8',
+        'h-8 sm:h-9',
         'border border-chrome-dark',
         disabled
           ? 'cursor-not-allowed opacity-70 shadow-[0_2px_3px_rgba(0,0,0,0.3)]'

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useFruitMachine } from '@/hooks/useFruitMachine';
 import { evaluateForDisplay } from '@/lib/evaluate';
 import { calculatePayout } from '@/lib/puzzleEngine';
@@ -161,6 +161,7 @@ export default function FruitMachine() {
   const [showWinBanner, setShowWinBanner] = useState(false);
   const [showNextChallenge, setShowNextChallenge] = useState(false);
   const [lcdLit, setLcdLit] = useState(false);
+  const [showNerdleConfirm, setShowNerdleConfirm] = useState(false);
 
   // Auto-cycle lever hint in ready state: show for 2s, then 5s gap, repeat
   useEffect(() => {
@@ -397,10 +398,10 @@ export default function FruitMachine() {
         <div id="nerdlegame_D_x1" className="desktopSideAd mr-2 ml-2" />
 
         {/* Center column */}
-        <div className="flex flex-col sm:items-center">
+        <div className="flex flex-col sm:items-center flex-1 min-w-0 max-w-xl">
 
       {/* ===== SLOT MACHINE BODY ===== */}
-      <div className="relative ml-10 sm:ml-14 mr-10 sm:mr-14">
+      <div className="relative mr-10 sm:mr-14">
         <div
           className="relative z-10 rounded-2xl border-2 border-chrome-dark shadow-2xl overflow-hidden"
           style={{
@@ -575,6 +576,9 @@ export default function FruitMachine() {
             );
           })()}
 
+          {/* Reel area wrapper — lever connector anchors to this */}
+          <div className="relative">
+
           {/* Nudge up row - outside glass window */}
           <div className="mx-2 sm:mx-3 mt-2 sm:mt-3 mb-1.5 sm:mb-2">
             <NudgeRow
@@ -667,6 +671,8 @@ export default function FruitMachine() {
             />
           </div>
 
+          </div>{/* end reel area wrapper */}
+
           {/* Bottom LCD status display */}
           <div className="mx-2 sm:mx-3 mb-2 sm:mb-3">
             <div
@@ -678,10 +684,10 @@ export default function FruitMachine() {
                   : celebrationPhase === 'revealed'
                     ? (lcdLit ? '#4ade80' : '#00ff88')
                     : 'rgba(0,0,0,0.9)',
-                borderTop: '2px solid rgba(255,255,255,0.12)',
-                borderLeft: '2px solid rgba(255,255,255,0.1)',
-                borderBottom: '2px solid rgba(255,255,255,0.35)',
-                borderRight: '2px solid rgba(255,255,255,0.25)',
+                borderTop: '2px solid rgba(255,255,255,0.18)',
+                borderLeft: '2px solid rgba(255,255,255,0.19)',
+                borderBottom: '2px solid rgba(255,255,255,0.25)',
+                borderRight: '2px solid rgba(255,255,255,0.22)',
                 boxShadow: (showNextChallenge && !allSolved && !isCelebrating)
                   ? (lcdLit
                       ? '0 0 18px rgba(255,92,176,0.8), 0 0 36px rgba(255,45,149,0.4)'
@@ -805,9 +811,12 @@ export default function FruitMachine() {
           <CoinTray totalCoins={totalCoins} potentialCoins={potentialCoins} />
         </div>
 
-        {/* Lever assembly */}
-        <div className="absolute -right-10 sm:-right-14 top-[45%] -translate-y-1/2 flex items-center z-[5]">
-          {/* 1. Big connector plate – matches machine body, anchors to right edge */}
+        {/* Lever assembly — centered on machine, outside overflow:hidden */}
+        <div
+          className="absolute flex items-center z-[5]"
+          style={{ right: 'clamp(-40px, -3.5vw, -56px)', top: '50%', transform: 'translateY(calc(-50% - 20px))' }}
+        >
+          {/* 1. Big connector plate */}
           <div
             className="border border-chrome-dark border-l-0 rounded-r-md"
             style={{
@@ -818,7 +827,7 @@ export default function FruitMachine() {
               boxShadow: '2px 0 6px rgba(0,0,0,0.3), inset -2px 0 4px rgba(255,255,255,0.1)',
             }}
           />
-          {/* 2. Small narrow chrome bridge – connects plate to lever shaft */}
+          {/* 2. Chrome bridge */}
           <div
             style={{
               width: 'clamp(8px, 1.5vw, 12px)',
@@ -835,16 +844,54 @@ export default function FruitMachine() {
             <Lever phase={phase} onSpin={spin} />
           </div>
         </div>
+
+        {/* Side display panel - bottom right of machine */}
+        <div
+          className="absolute z-[5] rounded-lg border border-chrome-dark overflow-hidden"
+          style={{
+            right: 'clamp(-40px, -3.5vw, -56px)',
+            bottom: '48px',
+            transform: 'translate(1px, 0)',
+            boxShadow: '2px 2px 8px rgba(0,0,0,0.4), inset 2px 0 6px rgba(0,0,0,0.3), inset -2px 0 6px rgba(0,0,0,0.3)',
+          }}
+        >
+          {/* Top chrome rail */}
+          <div className="h-1.5 sm:h-2" style={{ background: 'linear-gradient(to bottom, #8a9098, #58616e)' }} />
+          {/* Machine body with buttons */}
+          <div
+            className="flex flex-col items-center gap-2 px-1.5 sm:px-2 py-2 sm:py-2.5"
+            style={{
+              background: 'linear-gradient(to bottom, #58616e 0%, #2a2f38 15%, #3a4250 40%, #505a6c 60%, #3a4250 85%, #2a2f38 100%)',
+            }}
+          >
+            <button
+              onClick={() => setShowNerdleConfirm(true)}
+              className="rounded-full flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 cursor-pointer"
+              style={{
+                backgroundColor: '#820458',
+                boxShadow: 'inset 0 -2px 3px rgba(255,255,255,0.35), inset 0 2px 3px rgba(0,0,0,0.15), inset 2px 0 3px rgba(255,255,255,0.08), inset -2px 0 3px rgba(255,255,255,0.12), 0 2px 4px rgba(0,0,0,0.4)',
+              }}
+              aria-label="Back to Nerdleverse"
+            >
+              <span className="text-white font-title font-bold select-none" style={{ fontSize: '26px', lineHeight: 1, position: 'relative', top: '-2px' }}>n</span>
+            </button>
+            <button
+              onClick={() => setShowHelp(true)}
+              className="rounded-full flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 cursor-pointer"
+              style={{
+                backgroundColor: '#398874',
+                boxShadow: 'inset 0 -2px 3px rgba(255,255,255,0.35), inset 0 2px 3px rgba(0,0,0,0.15), inset 2px 0 3px rgba(255,255,255,0.08), inset -2px 0 3px rgba(255,255,255,0.12), 0 2px 4px rgba(0,0,0,0.4)',
+              }}
+              aria-label="How to play"
+            >
+              <span className="text-white font-bold select-none" style={{ fontSize: '22px', lineHeight: 1, position: 'relative', top: '-1px' }}>?</span>
+            </button>
+          </div>
+          {/* Bottom chrome rail — dark at top (matching body bottom), lighter below */}
+          <div className="h-1.5 sm:h-2" style={{ background: 'linear-gradient(to bottom, #2a2f38, #8a9098)' }} />
+        </div>
       </div>
 
-      {/* Help button */}
-      <button
-        onClick={() => setShowHelp(true)}
-        className="mt-3 flex self-center items-center gap-1.5 text-sm text-slate-500 hover:text-slate-300 transition-colors"
-      >
-        <HelpCircle className="w-4 h-4" />
-        <span>How to Play</span>
-      </button>
 
         </div>
         {/* Right desktop ad */}
@@ -859,6 +906,40 @@ export default function FruitMachine() {
 
       {/* Help modal */}
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+
+      {/* Nerdle confirm modal */}
+      {showNerdleConfirm && (
+        <motion.div
+          className="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          onClick={() => setShowNerdleConfirm(false)}
+        >
+          <motion.div
+            className="relative bg-slate-800/95 border-2 border-chrome-dark rounded-2xl shadow-2xl mx-4 max-w-xs w-full"
+            initial={{ y: 30, scale: 0.95, opacity: 0 }}
+            animate={{ y: 0, scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex flex-col items-center gap-4 p-6 sm:p-8">
+              <a
+                href="https://www.nerdlegame.com"
+                className="w-full text-center px-4 py-2.5 rounded-lg font-bold text-white text-lg sm:text-xl tracking-wide cursor-pointer transition-colors hover:brightness-110"
+                style={{ backgroundColor: '#820458' }}
+              >
+                nerdleverse home
+              </a>
+              <button
+                onClick={() => setShowNerdleConfirm(false)}
+                className="text-slate-400 hover:text-slate-200 text-sm font-medium cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 }

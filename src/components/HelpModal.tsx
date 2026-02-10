@@ -14,7 +14,7 @@ export default function HelpModal({ onClose }: HelpModalProps) {
       onClick={onClose}
     >
       <motion.div
-        className="relative bg-gradient-to-b from-machine-panel via-machine-body to-machine-panel border-2 border-chrome-dark rounded-2xl shadow-2xl mx-4 max-w-md w-full max-h-[85vh] flex flex-col"
+        className="relative bg-slate-800/95 border-2 border-chrome-dark rounded-2xl shadow-2xl mx-4 max-w-md w-full max-h-[85vh] flex flex-col"
         initial={{ y: 30, scale: 0.95, opacity: 0 }}
         animate={{ y: 0, scale: 1, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
