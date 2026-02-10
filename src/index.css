@@ -38,6 +38,26 @@
   }
 }
 
+/* Nudge button pulse hint */
+@keyframes nudge-pulse {
+  0%, 100% { box-shadow: 0 3px 5px rgba(0,0,0,0.4); }
+  50% { box-shadow: 0 3px 5px rgba(0,0,0,0.4), 0 0 16px 4px rgba(0,255,136,0.6); }
+}
+
+.animate-nudge-pulse {
+  animation: nudge-pulse 1s ease-in-out infinite;
+}
+
+/* Target number pulse when dial hint is showing */
+@keyframes target-pulse {
+  0%, 100% { opacity: 1; text-shadow: 0 0 8px currentColor, 0 0 16px currentColor; }
+  50% { opacity: 0.5; text-shadow: 0 0 4px currentColor; }
+}
+
+.animate-target-pulse {
+  animation: target-pulse 1s ease-in-out infinite;
+}
+
 /* Slot machine chrome gradient – darker brushed steel */
 .chrome-gradient {
   background: linear-gradient(180deg, #747880 0%, #62666e 15%, #6e7278 30%, #686c74 50%, #6e7278 70%, #62666e 85%, #747880 100%);

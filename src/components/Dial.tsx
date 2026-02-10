@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DialStrip from './DialStrip';
 import type { DialConfig, DialState, GamePhase } from '@/types/puzzle';
@@ -10,6 +11,8 @@ interface DialProps {
   isSpinning: boolean;
   isLocked: boolean;
   overrideDisplay?: React.ReactNode;
+  onTap?: () => void;
+  onSwipe?: (direction: 'up' | 'down') => void;
 }
 
 function formatValue(val: number | string) {
@@ -91,6 +94,8 @@ export default function Dial({
   isSpinning,
   isLocked,
   overrideDisplay,
+  onTap,
+  onSwipe,
 }: DialProps) {
   const len = config.values.length;
   const prevIndex = (state.currentIndex - 1 + len) % len;
@@ -102,8 +107,41 @@ export default function Dial({
   const textSmall = isOperator ? 'text-2xl sm:text-3xl' : 'text-lg sm:text-xl';
   const textBase = isOperator ? 'text-4xl sm:text-5xl' : 'text-2xl sm:text-3xl';
 
+  // Drag detection: nudge fires mid-drag when threshold crossed, tap → hint
+  const pointerStartY = useRef<number | null>(null);
+  const hasSwiped = useRef(false);
+  const SWIPE_THRESHOLD = 20;
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    pointerStartY.current = e.clientY;
+    hasSwiped.current = false;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (pointerStartY.current === null || hasSwiped.current) return;
+    const dy = e.clientY - pointerStartY.current;
+    if (Math.abs(dy) >= SWIPE_THRESHOLD) {
+      onSwipe?.(dy > 0 ? 'up' : 'down');
+      hasSwiped.current = true;
+    }
+  };
+
+  const handlePointerUp = () => {
+    if (pointerStartY.current !== null && !hasSwiped.current) {
+      onTap?.();
+    }
+    pointerStartY.current = null;
+  };
+
   return (
-    <div className="relative w-14 sm:w-24">
+    <div
+      className="relative w-14 sm:w-24"
+      style={{ touchAction: 'none' }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+    >
       <div
         className="relative w-full rounded-lg border-2 border-slate-400"
         style={{

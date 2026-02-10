@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
+import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
 import type { GamePhase } from '@/types/puzzle';
 
 interface LeverProps {
@@ -11,6 +11,10 @@ export default function Lever({ phase, onSpin }: LeverProps) {
   const canSpin = phase === 'ready' || phase === 'playing';
   const [pulled, setPulled] = useState(false);
   const [lit, setLit] = useState(false);
+  const pulledRef = useRef(false);
+
+  // Keep ref in sync so drag handler sees latest value
+  pulledRef.current = pulled;
 
   // Simple on/off toggle for ball glow – 500ms on, 500ms off
   useEffect(() => {
@@ -19,29 +23,52 @@ export default function Lever({ phase, onSpin }: LeverProps) {
     return () => clearInterval(id);
   }, [phase, pulled]);
 
-  const handlePull = () => {
-    if (!canSpin || pulled) return;
+  // Motion value for drag tracking
+  const dragY = useMotionValue(0);
+  // Shaft scale driven reactively by drag position
+  const shaftScale = useTransform(dragY, [0, 40], [1, 0.65]);
+
+  const triggerSpin = () => {
     setPulled(true);
     onSpin();
-    setTimeout(() => setPulled(false), 600);
+    animate(dragY, 40, { type: 'spring', stiffness: 300, damping: 15 }).then(() => {
+      animate(dragY, 0, { type: 'spring', stiffness: 400, damping: 20 });
+      setTimeout(() => setPulled(false), 200);
+    });
   };
 
-  const springDown = { type: 'spring' as const, stiffness: 300, damping: 15 };
-  const springUp = { type: 'spring' as const, stiffness: 400, damping: 20 };
+  // Click fallback
+  const handlePull = () => {
+    if (!canSpin || pulledRef.current) return;
+    triggerSpin();
+  };
+
+  // Drag end: trigger spin if past threshold, otherwise snap back
+  const handleDragEnd = () => {
+    if (dragY.get() >= 30 && canSpin && !pulledRef.current) {
+      triggerSpin();
+    } else if (!pulledRef.current) {
+      animate(dragY, 0, { type: 'spring', stiffness: 400, damping: 20 });
+    }
+  };
 
   return (
     <button
       onClick={handlePull}
       disabled={!canSpin}
       className="relative flex flex-col items-center cursor-pointer disabled:cursor-not-allowed group"
+      style={{ touchAction: 'none' }}
       aria-label="Pull lever to spin"
     >
-      {/* Ball handle - higher z-index, moves down */}
+      {/* Ball handle - higher z-index, draggable downward */}
       <motion.div
         className="relative z-20"
-        style={{ transform: 'translateX(2px)', marginTop: '-20px' }}
-        animate={pulled ? { y: 40 } : { y: 0 }}
-        transition={pulled ? springDown : springUp}
+        style={{ y: dragY, x: 2, marginTop: '-20px' }}
+        drag={canSpin && !pulled ? 'y' : false}
+        dragConstraints={{ top: 0, bottom: 40 }}
+        dragElastic={0}
+        dragMomentum={false}
+        onDragEnd={handleDragEnd}
       >
         <div
           className="w-7 h-7 sm:w-10 sm:h-10 rounded-full relative overflow-hidden"
@@ -73,9 +100,7 @@ export default function Lever({ phase, onSpin }: LeverProps) {
       {/* Arm shaft - shrinks from top, bottom stays fixed */}
       <motion.div
         className="w-2.5 sm:w-3 h-[8.25rem] sm:h-[11.75rem] chrome-gradient rounded-b -mt-4"
-        style={{ transformOrigin: '50% 100%' }}
-        animate={pulled ? { scaleY: 0.65 } : { scaleY: 1 }}
-        transition={pulled ? springDown : springUp}
+        style={{ scaleY: shaftScale, transformOrigin: '50% 100%' }}
       />
     </button>
   );

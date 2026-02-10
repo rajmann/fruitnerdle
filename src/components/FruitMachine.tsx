@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useFruitMachine } from '@/hooks/useFruitMachine';
 import { evaluateForDisplay } from '@/lib/evaluate';
 import { calculatePayout } from '@/lib/puzzleEngine';
@@ -109,11 +109,12 @@ function getCelebrationDisplay(dialIndex: number, totalCoins: number): React.Rea
 }
 
 /** Row of nudge buttons aligned to match the 5 dials */
-function NudgeRow({ direction, disabled, nudgeAccents, onNudge }: {
+function NudgeRow({ direction, disabled, nudgeAccents, onNudge, pulse }: {
   direction: 'up' | 'down';
   disabled: boolean[];
   nudgeAccents: ('green' | 'red')[];
   onNudge: (dialIndex: number) => void;
+  pulse?: boolean;
 }) {
   return (
     <div className="flex items-center justify-center gap-1 sm:gap-3">
@@ -125,6 +126,7 @@ function NudgeRow({ direction, disabled, nudgeAccents, onNudge }: {
               disabled={disabled[i]}
               accent={nudgeAccents[i]}
               onClick={() => onNudge(i)}
+              pulse={pulse}
             />
           </div>
         </div>
@@ -162,6 +164,39 @@ export default function FruitMachine() {
   const [showNextChallenge, setShowNextChallenge] = useState(false);
   const [lcdLit, setLcdLit] = useState(false);
   const [showNerdleConfirm, setShowNerdleConfirm] = useState(false);
+
+  // Dial interaction hint — stays until first nudge
+  const [showDialHint, setShowDialHint] = useState(false);
+  // "Pull lever to start" prompt when tapping dials in ready state
+  const [showLeverPrompt, setShowLeverPrompt] = useState(false);
+  const leverPromptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleDialClick = useCallback(() => {
+    if (phase === 'ready') {
+      setShowLeverPrompt(true);
+      if (leverPromptTimerRef.current) clearTimeout(leverPromptTimerRef.current);
+      leverPromptTimerRef.current = setTimeout(() => setShowLeverPrompt(false), 2500);
+      return;
+    }
+    if (phase !== 'playing') return;
+    setShowDialHint(true);
+  }, [phase]);
+
+  // Dismiss hint on first nudge
+  useEffect(() => {
+    if (nudgeCount > 0) setShowDialHint(false);
+  }, [nudgeCount]);
+
+  // Dismiss lever prompt when leaving ready state
+  useEffect(() => {
+    if (phase !== 'ready') {
+      setShowLeverPrompt(false);
+      if (leverPromptTimerRef.current) {
+        clearTimeout(leverPromptTimerRef.current);
+        leverPromptTimerRef.current = null;
+      }
+    }
+  }, [phase]);
 
   // Auto-cycle lever hint in ready state: show for 2s, then 5s gap, repeat
   useEffect(() => {
@@ -408,7 +443,6 @@ export default function FruitMachine() {
             background: 'linear-gradient(to bottom, #58616e 0%, #2a2f38 8%, #3a4250 25%, #505a6c 50%, #3a4250 75%, #2a2f38 92%, #58616e 100%)',
             boxShadow: 'inset 4px 0 12px -4px rgba(0,0,0,0.5), inset -4px 0 12px -4px rgba(0,0,0,0.5), 0 25px 50px -12px rgba(0,0,0,0.25)',
           }}
-          onClick={() => { if (phase === 'ready') spin(); }}
         >
           {/* Chrome top rail */}
           <div className="h-3 sm:h-4 border-b border-chrome-dark" style={{ background: 'linear-gradient(to bottom, #8a9098, #58616e)' }} />
@@ -448,8 +482,8 @@ export default function FruitMachine() {
                     borderRight: '2px solid rgba(255,255,255,0.25)',
                   }}
                 >
-                  {/* Brand mark: fruit + n (hidden during spin to make room for objective) */}
-                  <div className="absolute left-0 top-0 bottom-0 flex items-center gap-0.5 px-1.5 sm:px-2.5 z-10" style={{ display: phase === 'spinning' ? 'none' : undefined }}>
+                  {/* Brand mark: fruit + n (hidden during spin and pre-nudge objective) */}
+                  <div className="absolute left-0 top-0 bottom-0 flex items-center gap-0.5 px-1.5 sm:px-2.5 z-10" style={{ display: phase === 'spinning' || (phase === 'playing' && nudgeCount === 0) ? 'none' : undefined }}>
                     <AnimatePresence mode="wait">
                       <motion.span
                         key={fruitIndex}
@@ -501,17 +535,21 @@ export default function FruitMachine() {
                         >
                           fruit nerdle
                         </motion.span>
-                      ) : phase === 'spinning' ? (
+                      ) : phase === 'spinning' || (phase === 'playing' && nudgeCount === 0) ? (
                         <motion.span
                           key="objective"
-                          className="absolute inset-0 flex items-center justify-center font-body text-sm sm:text-xl select-none text-center text-led-green"
+                          className="absolute inset-0 flex items-center justify-center font-body text-lg sm:text-3xl font-bold select-none text-center"
+                          style={{
+                            color: '#ffcc00',
+                            textShadow: '0 0 8px #ffcc00, 0 0 16px rgba(255,204,0,0.4)',
+                          }}
                           initial={{ opacity: 1 }}
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
-                          transition={{ duration: 0 }}
+                          transition={{ duration: 0.3 }}
                         >
-                          Nudge the wheels to make{' \u00a0'}
-                          <span className="font-bold text-lg sm:text-3xl led-glow tabular-nums">{puzzle.target}</span>
+                          Nudge dials to make{' \u00a0'}
+                          <span className="tabular-nums animate-target-pulse" style={{ textShadow: '0 0 8px #ffcc00, 0 0 16px #ffcc00' }}>{puzzle.target}</span>
                         </motion.span>
                       ) : (
                         <motion.div
@@ -586,6 +624,7 @@ export default function FruitMachine() {
               disabled={nudgeDisabled}
               nudgeAccents={nudgeAccents}
               onNudge={(i) => nudge(i, 'up')}
+              pulse={showDialHint}
             />
           </div>
 
@@ -614,6 +653,8 @@ export default function FruitMachine() {
                         isSpinning={spinningDials[i]}
                         isLocked={lockedDials[i]}
                         overrideDisplay={celebDisplay}
+                        onTap={handleDialClick}
+                        onSwipe={(dir) => nudge(i, dir)}
                       />
                     );
                   })}
@@ -661,6 +702,40 @@ export default function FruitMachine() {
             )}
           </div>
 
+          {/* Dial interaction hint toast */}
+          <AnimatePresence>
+            {showDialHint && (
+              <motion.div
+                className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-20 flex justify-center pointer-events-none"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="bg-black/90 text-led-green text-sm sm:text-base font-semibold px-5 py-3 rounded-lg border border-led-green/30 shadow-lg">
+                  Swipe dials or use the arrow buttons
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* "Pull lever to start" prompt toast */}
+          <AnimatePresence>
+            {showLeverPrompt && (
+              <motion.div
+                className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-20 flex justify-center pointer-events-none"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="bg-black/90 text-led-green text-sm sm:text-base font-semibold px-5 py-3 rounded-lg border border-led-green/30 shadow-lg">
+                  Pull lever to start
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Nudge down row - always visible */}
           <div className="mx-2 sm:mx-3 mb-1.5 sm:mb-2">
             <NudgeRow
@@ -668,6 +743,7 @@ export default function FruitMachine() {
               disabled={nudgeDisabled}
               nudgeAccents={nudgeAccents}
               onNudge={(i) => nudge(i, 'down')}
+              pulse={showDialHint}
             />
           </div>
 
@@ -792,12 +868,19 @@ export default function FruitMachine() {
                         </button>
                       </div>
 
-                      {/* Right: moves */}
-                      <div className="flex-1 flex justify-end">
+                      {/* Right: solvable-in + moves */}
+                      <div className="flex-1 flex flex-col items-end">
                         {!isCelebrating && (
-                          <span>
-                            Moves: <span className="font-bold text-led-amber" style={{ textShadow: '0 0 6px #ffcc00' }}>{moveCount}</span>
-                          </span>
+                          <>
+                            {minMoves != null && minMoves > 0 && (
+                              <span className="text-slate-400">
+                                Solvable in: <span className="font-bold">{minMoves}</span>
+                              </span>
+                            )}
+                            <span>
+                              Moves: <span className="font-bold text-led-amber" style={{ textShadow: '0 0 6px #ffcc00' }}>{moveCount}</span>
+                            </span>
+                          </>
                         )}
                       </div>
                     </motion.div>
@@ -922,7 +1005,16 @@ export default function FruitMachine() {
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex flex-col items-center gap-4 p-6 sm:p-8">
+            <div className="flex items-center justify-end p-4 pb-0">
+              <button
+                onClick={() => setShowNerdleConfirm(false)}
+                className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+            <div className="flex flex-col items-center gap-4 px-6 pt-6 pb-10 sm:px-8 sm:pb-12">
               <a
                 href="https://www.nerdlegame.com"
                 className="w-full text-center px-4 py-2.5 rounded-lg font-bold text-white text-lg sm:text-xl tracking-wide cursor-pointer transition-colors hover:brightness-110"
@@ -930,12 +1022,6 @@ export default function FruitMachine() {
               >
                 nerdleverse home
               </a>
-              <button
-                onClick={() => setShowNerdleConfirm(false)}
-                className="text-slate-400 hover:text-slate-200 text-sm font-medium cursor-pointer transition-colors"
-              >
-                Cancel
-              </button>
             </div>
           </motion.div>
         </motion.div>

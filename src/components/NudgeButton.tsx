@@ -6,9 +6,10 @@ interface NudgeButtonProps {
   disabled: boolean;
   accent?: 'green' | 'red';
   onClick: () => void;
+  pulse?: boolean;
 }
 
-export default function NudgeButton({ direction, disabled, accent = 'green', onClick }: NudgeButtonProps) {
+export default function NudgeButton({ direction, disabled, accent = 'green', onClick, pulse }: NudgeButtonProps) {
   const Icon = direction === 'up' ? ChevronDown : ChevronUp;
   const isGreen = accent === 'green';
 
@@ -26,6 +27,7 @@ export default function NudgeButton({ direction, disabled, accent = 'green', onC
               'active:scale-90 active:shadow-none cursor-pointer',
               'shadow-[0_3px_5px_rgba(0,0,0,0.4),_0_1px_2px_rgba(0,0,0,0.3)]',
               isGreen ? 'shadow-[0_3px_5px_rgba(0,0,0,0.4),_0_0_10px_rgba(0,255,136,0.3)]' : 'shadow-[0_3px_5px_rgba(0,0,0,0.4),_0_0_12px_rgba(248,113,113,0.4)]',
+              pulse && 'animate-nudge-pulse',
             ),
       )}
       style={{ background: `linear-gradient(to bottom, #969aa2, #848890)` }}
