@@ -1,0 +1,317 @@
+[
+  {
+    "id": "puzzle-001",
+    "target": 141,
+    "dials": [
+      {
+        "type": "number",
+        "values": [
+          9,
+          10,
+          2,
+          12,
+          1
+        ]
+      },
+      {
+        "type": "operator",
+        "values": [
+          "+",
+          "-",
+          "*",
+          "/"
+        ]
+      },
+      {
+        "type": "number",
+        "values": [
+          11,
+          2,
+          4,
+          9,
+          8
+        ]
+      },
+      {
+        "type": "operator",
+        "values": [
+          "+",
+          "-",
+          "*",
+          "/"
+        ]
+      },
+      {
+        "type": "number",
+        "values": [
+          6,
+          1,
+          12,
+          7,
+          11
+        ]
+      }
+    ],
+    "solutions": [
+      [
+        0,
+        0,
+        0,
+        2,
+        2
+      ]
+    ]
+  },
+  {
+    "id": "puzzle-002",
+    "target": 137,
+    "dials": [
+      {
+        "type": "number",
+        "values": [
+          5,
+          9,
+          2,
+          6,
+          8
+        ]
+      },
+      {
+        "type": "operator",
+        "values": [
+          "+",
+          "-",
+          "*",
+          "/"
+        ]
+      },
+      {
+        "type": "number",
+        "values": [
+          11,
+          9,
+          4,
+          8,
+          1
+        ]
+      },
+      {
+        "type": "operator",
+        "values": [
+          "+",
+          "-",
+          "*",
+          "/"
+        ]
+      },
+      {
+        "type": "number",
+        "values": [
+          8,
+          1,
+          12,
+          7,
+          9
+        ]
+      }
+    ],
+    "solutions": [
+      [
+        0,
+        0,
+        0,
+        2,
+        2
+      ]
+    ]
+  },
+  {
+    "id": "puzzle-003",
+    "target": 123,
+    "dials": [
+      {
+        "type": "number",
+        "values": [
+          2,
+          3,
+          11,
+          12,
+          6
+        ]
+      },
+      {
+        "type": "operator",
+        "values": [
+          "+",
+          "-",
+          "*",
+          "/"
+        ]
+      },
+      {
+        "type": "number",
+        "values": [
+          7,
+          11,
+          9,
+          5,
+          10
+        ]
+      },
+      {
+        "type": "operator",
+        "values": [
+          "+",
+          "-",
+          "*",
+          "/"
+        ]
+      },
+      {
+        "type": "number",
+        "values": [
+          11,
+          1,
+          8,
+          7,
+          6
+        ]
+      }
+    ],
+    "solutions": [
+      [
+        0,
+        0,
+        1,
+        2,
+        0
+      ]
+    ]
+  },
+  {
+    "id": "puzzle-004",
+    "target": 136,
+    "dials": [
+      {
+        "type": "number",
+        "values": [
+          4,
+          10,
+          2,
+          3,
+          5
+        ]
+      },
+      {
+        "type": "operator",
+        "values": [
+          "+",
+          "-",
+          "*",
+          "/"
+        ]
+      },
+      {
+        "type": "number",
+        "values": [
+          11,
+          7,
+          10,
+          2,
+          8
+        ]
+      },
+      {
+        "type": "operator",
+        "values": [
+          "+",
+          "-",
+          "*",
+          "/"
+        ]
+      },
+      {
+        "type": "number",
+        "values": [
+          3,
+          9,
+          12,
+          4,
+          7
+        ]
+      }
+    ],
+    "solutions": [
+      [
+        0,
+        0,
+        0,
+        2,
+        2
+      ]
+    ]
+  },
+  {
+    "id": "puzzle-005",
+    "target": 151,
+    "dials": [
+      {
+        "type": "number",
+        "values": [
+          7,
+          10,
+          3,
+          2,
+          11
+        ]
+      },
+      {
+        "type": "operator",
+        "values": [
+          "+",
+          "-",
+          "*",
+          "/"
+        ]
+      },
+      {
+        "type": "number",
+        "values": [
+          12,
+          1,
+          4,
+          6,
+          10
+        ]
+      },
+      {
+        "type": "operator",
+        "values": [
+          "+",
+          "-",
+          "*",
+          "/"
+        ]
+      },
+      {
+        "type": "number",
+        "values": [
+          5,
+          10,
+          8,
+          12,
+          2
+        ]
+      }
+    ],
+    "solutions": [
+      [
+        0,
+        0,
+        0,
+        2,
+        3
+      ]
+    ]
+  }
+]

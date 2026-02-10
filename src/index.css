@@ -1,0 +1,170 @@
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply antialiased;
+    font-family: 'Barlow', sans-serif;
+    background-color: #0f172a;
+    color: #e2e8f0;
+  }
+}
+
+@layer utilities {
+  .animate-shake {
+    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+    20%, 40%, 60%, 80% { transform: translateX(4px); }
+  }
+}
+
+/* Desktop side ad units */
+.desktopSideAd {
+  flex: 3;
+  overflow: hidden;
+}
+
+@media screen and (max-width: 850px) {
+  .desktopSideAd {
+    display: none !important;
+  }
+}
+
+/* Slot machine chrome gradient */
+.chrome-gradient {
+  background: linear-gradient(180deg, #d8d8d8 0%, #a0a0a0 15%, #d4d4d4 30%, #b8b8b8 50%, #c8c8c8 70%, #a0a0a0 85%, #d0d0d0 100%);
+}
+
+.chrome-gradient-h {
+  background: linear-gradient(90deg, #d8d8d8 0%, #a0a0a0 15%, #d4d4d4 30%, #b8b8b8 50%, #c8c8c8 70%, #a0a0a0 85%, #d0d0d0 100%);
+}
+
+/* Glass overlay for reel window */
+.glass-overlay {
+  background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 30%, rgba(0,0,0,0.05) 70%, rgba(0,0,0,0.1) 100%);
+  pointer-events: none;
+}
+
+/* LED display glow */
+.led-glow {
+  text-shadow: 0 0 8px currentColor, 0 0 16px currentColor;
+}
+
+/* Light bulb glow */
+.bulb-glow {
+  box-shadow: 0 0 6px 2px currentColor;
+}
+
+/* Spin sweep: brief flash that sweeps across the light strip */
+@keyframes bulb-sweep {
+  0%, 100% { opacity: 0.4; }
+  40%, 60% { opacity: 1; }
+}
+
+/* Win celebration: rapid bright pulsing with scale */
+@keyframes bulb-celebrate {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.4); }
+}
+
+/* 3D logo cube spin */
+@keyframes logo-cube-spin {
+  0%   { transform: rotateX(0deg); }
+  100% { transform: rotateX(360deg); }
+}
+
+.logo-cube-spin {
+  animation: logo-cube-spin 0.3s linear infinite;
+}
+
+/* Win: dial border color chase */
+@keyframes border-chase {
+  0%   { border-color: #ff4444; box-shadow: 0 0 10px 2px rgba(255,68,68,0.5); }
+  20%  { border-color: #ffcc00; box-shadow: 0 0 10px 2px rgba(255,204,0,0.5); }
+  40%  { border-color: #44ff44; box-shadow: 0 0 10px 2px rgba(68,255,68,0.5); }
+  60%  { border-color: #ff8800; box-shadow: 0 0 10px 2px rgba(255,136,0,0.5); }
+  80%  { border-color: #ff44ff; box-shadow: 0 0 10px 2px rgba(255,68,255,0.5); }
+  100% { border-color: #ff4444; box-shadow: 0 0 10px 2px rgba(255,68,68,0.5); }
+}
+
+/* Payline: rotating conic gradient that marches around the border */
+@property --payline-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes payline-rotate {
+  to { --payline-angle: 360deg; }
+}
+
+.payline-marching {
+  --payline-angle: 0deg;
+  background: conic-gradient(
+    from var(--payline-angle),
+    #ff4444, #ffcc00, #44ff44, #ff8800, #ff44ff, #ff4444
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  padding: 3px;
+  animation: payline-rotate 1.5s linear infinite;
+  filter: drop-shadow(0 0 6px rgba(255,68,68,0.4)) drop-shadow(0 0 6px rgba(68,255,68,0.4));
+}
+
+/* Coin drop: falls from top of machine to tray with bounce */
+@keyframes coin-drop {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  60% {
+    transform: translateY(var(--drop-distance, 200px)) rotate(360deg);
+    opacity: 1;
+  }
+  70% {
+    transform: translateY(calc(var(--drop-distance, 200px) - 12px)) rotate(400deg);
+    opacity: 1;
+  }
+  80% {
+    transform: translateY(var(--drop-distance, 200px)) rotate(420deg);
+    opacity: 1;
+  }
+  88% {
+    transform: translateY(calc(var(--drop-distance, 200px) - 4px)) rotate(430deg);
+    opacity: 1;
+  }
+  94% {
+    transform: translateY(var(--drop-distance, 200px)) rotate(435deg);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(var(--drop-distance, 200px)) rotate(435deg);
+    opacity: 0;
+  }
+}
+
+/* Fruit confetti falling animation with CSS custom properties */
+@keyframes fruitFallAnim {
+  0% {
+    transform: translateY(0) translateX(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) translateX(var(--sway-x, 0px)) rotate(var(--rotation, 720deg));
+    opacity: 0;
+  }
+}
