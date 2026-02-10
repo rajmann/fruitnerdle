@@ -5,8 +5,8 @@ interface CoinTrayProps {
   potentialCoins: number;
 }
 
-const SLOTS_PER_SIDE = 8;
-const MAX_SLOTS = SLOTS_PER_SIDE * 2; // 16
+const SLOTS_PER_SIDE = 5;
+const MAX_SLOTS = SLOTS_PER_SIDE * 2; // 10
 
 type CoinStyle = 'empty' | 'gold' | 'grey' | 'green5';
 
@@ -115,9 +115,10 @@ export default function CoinTray({ totalCoins, potentialCoins }: CoinTrayProps) 
 
   return (
     <div
-      className="chrome-gradient border-t border-chrome-dark flex items-center justify-center gap-[3px] sm:gap-1 px-2 sm:px-3 py-1.5 sm:py-2"
+      className="border-t border-chrome-dark flex items-center justify-center gap-[3px] sm:gap-1 px-2 sm:px-3 py-1.5 sm:py-2"
       style={{
-        ['--coin-size' as string]: 'clamp(14px, 3.5vw, 22px)',
+        background: 'linear-gradient(to bottom, #58616e, #3a4250)',
+        ['--coin-size' as string]: 'clamp(20px, 5vw, 30px)',
       }}
     >
       {/* Left coins */}
@@ -126,7 +127,7 @@ export default function CoinTray({ totalCoins, potentialCoins }: CoinTrayProps) 
       ))}
 
       {/* Center LED counter */}
-      <div className="flex items-center justify-center bg-black/80 border border-chrome-dark rounded px-1.5 sm:px-2 py-0.5 mx-0.5 sm:mx-1 shadow-inner">
+      <div className="flex items-center justify-center bg-black/80 border border-chrome-dark rounded px-1.5 sm:px-2 py-0.5 mx-0.5 sm:mx-1 shadow-inner" style={{ minWidth: '2.5rem' }}>
         <motion.span
           key={totalCoins}
           className="text-xs sm:text-sm font-bold font-mono text-led-amber led-glow select-none tabular-nums"

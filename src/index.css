@@ -38,13 +38,13 @@
   }
 }
 
-/* Slot machine chrome gradient */
+/* Slot machine chrome gradient – darker brushed steel */
 .chrome-gradient {
-  background: linear-gradient(180deg, #d8d8d8 0%, #a0a0a0 15%, #d4d4d4 30%, #b8b8b8 50%, #c8c8c8 70%, #a0a0a0 85%, #d0d0d0 100%);
+  background: linear-gradient(180deg, #747880 0%, #62666e 15%, #6e7278 30%, #686c74 50%, #6e7278 70%, #62666e 85%, #747880 100%);
 }
 
 .chrome-gradient-h {
-  background: linear-gradient(90deg, #d8d8d8 0%, #a0a0a0 15%, #d4d4d4 30%, #b8b8b8 50%, #c8c8c8 70%, #a0a0a0 85%, #d0d0d0 100%);
+  background: linear-gradient(90deg, #747880 0%, #62666e 15%, #6e7278 30%, #686c74 50%, #6e7278 70%, #62666e 85%, #747880 100%);
 }
 
 /* Glass overlay for reel window */
@@ -56,6 +56,22 @@
 /* LED display glow */
 .led-glow {
   text-shadow: 0 0 8px currentColor, 0 0 16px currentColor;
+}
+
+/* Animated rainbow text for win banner */
+.rainbow-text {
+  background: linear-gradient(90deg, #ff0000, #ff8800, #ffff00, #00ff88, #0088ff, #aa00ff, #ff0088, #ff0000);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbow-shift 1.5s linear infinite;
+  filter: drop-shadow(0 0 6px rgba(255,255,255,0.4));
+}
+
+@keyframes rainbow-shift {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
 }
 
 /* Light bulb glow */
@@ -83,16 +99,6 @@
 
 .logo-cube-spin {
   animation: logo-cube-spin 0.3s linear infinite;
-}
-
-/* Win: dial border color chase */
-@keyframes border-chase {
-  0%   { border-color: #ff4444; box-shadow: 0 0 10px 2px rgba(255,68,68,0.5); }
-  20%  { border-color: #ffcc00; box-shadow: 0 0 10px 2px rgba(255,204,0,0.5); }
-  40%  { border-color: #44ff44; box-shadow: 0 0 10px 2px rgba(68,255,68,0.5); }
-  60%  { border-color: #ff8800; box-shadow: 0 0 10px 2px rgba(255,136,0,0.5); }
-  80%  { border-color: #ff44ff; box-shadow: 0 0 10px 2px rgba(255,68,255,0.5); }
-  100% { border-color: #ff4444; box-shadow: 0 0 10px 2px rgba(255,68,68,0.5); }
 }
 
 /* Payline: rotating conic gradient that marches around the border */

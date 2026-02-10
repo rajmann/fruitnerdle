@@ -1,17 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
 import { useFruitMachine } from '@/hooks/useFruitMachine';
 import { evaluateForDisplay } from '@/lib/evaluate';
 import { calculatePayout } from '@/lib/puzzleEngine';
 import type { FruitPuzzle, DialState, GamePhase, Operator } from '@/types/puzzle';
 import Dial from './Dial';
-import TargetDisplay from './TargetDisplay';
+import NudgeButton from './NudgeButton';
 import Lever from './Lever';
 import HelpModal from './HelpModal';
-import NerdleLogo from './NerdleLogo';
 import CoinTray from './CoinTray';
-import ReelMockup from './ReelMockup';
+
+const FRUITS = ['\uD83C\uDF52', '\uD83C\uDF4B', '\uD83C\uDF4A', '\uD83C\uDF47', '\uD83C\uDF51', '\uD83C\uDF53', '\uD83C\uDF49'];
 
 type LightMode = 'idle' | 'spinning' | 'celebrating' | 'won';
 
@@ -39,11 +39,11 @@ function LightBulbs({ count = 9, mode = 'idle' as LightMode }: { count?: number;
   }
 
   return (
-    <div className="flex items-center justify-center gap-2 sm:gap-3 py-1.5">
+    <div className="flex items-center justify-center gap-3 sm:gap-5 py-1.5">
       {Array.from({ length: count }, (_, i) => (
         <div
           key={i}
-          className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bulb-glow transition-all"
+          className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full transition-all ${mode !== 'idle' ? 'bulb-glow' : ''}`}
           style={getBulbStyle(i)}
         />
       ))}
@@ -108,6 +108,31 @@ function getCelebrationDisplay(dialIndex: number, totalCoins: number): React.Rea
   );
 }
 
+/** Row of nudge buttons aligned to match the 5 dials */
+function NudgeRow({ direction, disabled, nudgeAccents, onNudge }: {
+  direction: 'up' | 'down';
+  disabled: boolean[];
+  nudgeAccents: ('green' | 'red')[];
+  onNudge: (dialIndex: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-center gap-1 sm:gap-3">
+      {Array.from({ length: 5 }, (_, i) => (
+        <div key={i} className="w-14 sm:w-24 flex justify-center">
+          <div className="w-12 sm:w-22">
+            <NudgeButton
+              direction={direction}
+              disabled={disabled[i]}
+              accent={nudgeAccents[i]}
+              onClick={() => onNudge(i)}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function FruitMachine() {
   const {
     puzzle,
@@ -133,8 +158,41 @@ export default function FruitMachine() {
   const [showHelp, setShowHelp] = useState(false);
   const [showLeverHint, setShowLeverHint] = useState(false);
   const [mode, setMode] = useState<GameMode>('hard');
+  const [showWinBanner, setShowWinBanner] = useState(false);
+  const [showNextChallenge, setShowNextChallenge] = useState(false);
+  const [lcdLit, setLcdLit] = useState(false);
+
+  // Auto-cycle lever hint in ready state: show for 2s, then 5s gap, repeat
+  useEffect(() => {
+    if (phase !== 'ready') {
+      setShowLeverHint(false);
+      return;
+    }
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const cycle = (delay: number) => {
+      timer = setTimeout(() => {
+        if (!active) return;
+        setShowLeverHint(true);
+        timer = setTimeout(() => {
+          if (!active) return;
+          setShowLeverHint(false);
+          cycle(5000);
+        }, 2000);
+      }, delay);
+    };
+    cycle(5000);
+    return () => { active = false; clearTimeout(timer); };
+  }, [phase]);
   const spinTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const firstSpinDoneRef = useRef(false);
+
+  // Rotating fruit brand mark (cycles every 10s)
+  const [fruitIndex, setFruitIndex] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setFruitIndex(i => (i + 1) % FRUITS.length), 10000);
+    return () => clearInterval(id);
+  }, []);
 
   // Coin system
   const [totalCoins, setTotalCoins] = useState(0);
@@ -192,17 +250,27 @@ export default function FruitMachine() {
     firstSpinDoneRef.current = false;
   }, [puzzleIndex]);
 
-  // Hide lever hint when spinning starts
-  useEffect(() => {
-    if (phase !== 'ready') setShowLeverHint(false);
-  }, [phase]);
+  // (lever hint hide/show handled by auto-cycle effect above)
 
-  // Detect win → award coins based on scoring tiers + mode cap
+  // Detect win → award coins + show "YOU WIN!" banner for 3s, then "NEXT CHALLENGE"
+  // showNextChallenge is only set true when the 3s timer fires — no timing race
   useEffect(() => {
     if (isCorrect && !prevCorrectRef.current) {
       const payout = calculatePayout(moveCount, minMoves, modeReductionRef.current);
       setTotalCoins(prev => prev + payout);
       puzzlePayoutsRef.current.set(puzzleIndex, payout);
+      setShowWinBanner(true);
+      setShowNextChallenge(false);
+      const timer = setTimeout(() => {
+        setShowWinBanner(false);
+        setShowNextChallenge(true);
+      }, 3000);
+      prevCorrectRef.current = isCorrect;
+      return () => clearTimeout(timer);
+    }
+    if (!isCorrect) {
+      setShowWinBanner(false);
+      setShowNextChallenge(false);
     }
     prevCorrectRef.current = isCorrect;
   }, [isCorrect, moveCount, minMoves, puzzleIndex]);
@@ -230,6 +298,14 @@ export default function FruitMachine() {
   // All puzzles solved? (derived from coin payouts tracker)
   const allSolved = puzzlePayoutsRef.current.size >= totalPuzzles;
   const isCelebrating = celebrationPhase !== 'none';
+
+  // LCD button flash: snap on/off like the lever ball
+  const lcdIsButton = (showNextChallenge && !allSolved && !isCelebrating) || celebrationPhase === 'revealed';
+  useEffect(() => {
+    if (!lcdIsButton) { setLcdLit(false); return; }
+    const id = setInterval(() => setLcdLit(l => !l), 500);
+    return () => clearInterval(id);
+  }, [lcdIsButton]);
 
   // Trigger celebration when all puzzles solved
   useEffect(() => {
@@ -305,6 +381,10 @@ export default function FruitMachine() {
     return (i === 1 || i === 3) ? 'green' : 'red';
   });
 
+  // Per-dial disabled state for nudge buttons
+  const canNudge = phase === 'playing' && !isCorrect && !isCelebrating;
+  const nudgeDisabled = puzzle.dials.map((_, i) => !canNudge || lockedDials[i]);
+
   // Potential coins: what would be earned if the user won on the next move
   const potentialCoins = (phase === 'playing' && !isCorrect)
     ? calculatePayout(moveCount + 1, minMoves, modeReductionRef.current)
@@ -322,215 +402,439 @@ export default function FruitMachine() {
       {/* ===== SLOT MACHINE BODY ===== */}
       <div className="relative ml-10 sm:ml-14 mr-10 sm:mr-14">
         <div
-          className="bg-gradient-to-b from-machine-panel via-machine-body to-machine-panel rounded-2xl border-2 border-chrome-dark shadow-2xl overflow-hidden"
-          onClick={() => { if (phase === 'ready') setShowLeverHint(true); }}
+          className="relative z-10 rounded-2xl border-2 border-chrome-dark shadow-2xl overflow-hidden"
+          style={{
+            background: 'linear-gradient(to bottom, #58616e 0%, #2a2f38 8%, #3a4250 25%, #505a6c 50%, #3a4250 75%, #2a2f38 92%, #58616e 100%)',
+            boxShadow: 'inset 4px 0 12px -4px rgba(0,0,0,0.5), inset -4px 0 12px -4px rgba(0,0,0,0.5), 0 25px 50px -12px rgba(0,0,0,0.25)',
+          }}
+          onClick={() => { if (phase === 'ready') spin(); }}
         >
-          {/* Chrome top rail with lights */}
-          <div className="chrome-gradient px-2 py-1 border-b border-chrome-dark">
-            <LightBulbs mode={lightMode} />
+          {/* Chrome top rail */}
+          <div className="h-3 sm:h-4 border-b border-chrome-dark" style={{ background: 'linear-gradient(to bottom, #8a9098, #58616e)' }} />
+
+          {/* Unified LED marquee display */}
+          {(() => {
+            let calcResult: number | null = null;
+            if (phase === 'playing' || phase === 'won') {
+              const vals = effectiveDialStates.map((ds, i) => puzzle.dials[i].values[ds.currentIndex]);
+              calcResult = evaluateForDisplay(
+                vals[0] as number,
+                vals[1] as string as Operator,
+                vals[2] as number,
+                vals[3] as string as Operator,
+                vals[4] as number,
+              );
+            }
+            let calcDisplay = '??';
+            if (calcResult !== null && Number.isInteger(calcResult)) {
+              calcDisplay = String(calcResult);
+            }
+            const showWin = isCelebrating || isCorrect;
+            const showHint = !showWin && nudgeCount === 0;
+            const hintValue = (phase === 'playing' && minMoves != null && minMoves > 0) ? String(minMoves) : '?';
+            const showCalc = !showWin && nudgeCount > 0;
+            const payout = calculatePayout(moveCount, minMoves, modeReductionRef.current);
+            const celebTotal = celebrationPhase === 'revealed' ? totalCoins : undefined;
+
+            return (
+              <div className="mx-2 sm:mx-3 mt-3 sm:mt-4 mb-2 sm:mb-3">
+                <div
+                  className="flex items-stretch bg-black/90 rounded-md overflow-hidden relative"
+                  style={{
+                    borderTop: '2px solid rgba(255,255,255,0.12)',
+                    borderLeft: '2px solid rgba(255,255,255,0.1)',
+                    borderBottom: '2px solid rgba(255,255,255,0.35)',
+                    borderRight: '2px solid rgba(255,255,255,0.25)',
+                  }}
+                >
+                  {/* Brand mark: fruit + n (hidden during spin to make room for objective) */}
+                  <div className="absolute left-0 top-0 bottom-0 flex items-center gap-0.5 px-1.5 sm:px-2.5 z-10" style={{ display: phase === 'spinning' ? 'none' : undefined }}>
+                    <AnimatePresence mode="wait">
+                      <motion.span
+                        key={fruitIndex}
+                        className="text-xl sm:text-3xl select-none"
+                        initial={{ y: -12, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 12, opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                      >
+                        {FRUITS[fruitIndex]}
+                      </motion.span>
+                    </AnimatePresence>
+                    <span className="font-title font-bold text-4xl sm:text-6xl text-led-green select-none leading-none led-glow" style={{ position: 'relative', top: '-2px' }}>
+                      n
+                    </span>
+                  </div>
+
+                  {/* Content area */}
+                  <div className="relative w-full flex items-center justify-center px-2 sm:px-3 py-1.5 sm:py-2 min-h-[56px] sm:min-h-[72px]">
+                    <AnimatePresence>
+                      {showWin ? (
+                        <motion.div
+                          key="win"
+                          className="flex flex-col items-center"
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                        >
+                          <span className="text-xl sm:text-3xl font-bold font-mono text-led-green led-glow select-none tabular-nums whitespace-nowrap leading-tight">
+                            {celebTotal != null ? `\u00f1${celebTotal}` : `${puzzle.target} solved`}
+                          </span>
+                          <span className="text-sm sm:text-lg font-medium font-mono text-nerdle-teal select-none tabular-nums whitespace-nowrap leading-tight">
+                            {celebTotal != null
+                              ? 'Complete!'
+                              : `${moveCount} moves = \u00f1${payout}`
+                            }
+                          </span>
+                        </motion.div>
+                      ) : phase === 'ready' ? (
+                        <motion.span
+                          key="title"
+                          className="absolute inset-0 flex items-center justify-center font-title font-bold text-xl sm:text-3xl select-none tracking-wider"
+                          style={{ color: '#00ff88', textShadow: '0 0 8px #00ff88, 0 0 16px #00ff88' }}
+                          initial={{ x: 120, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                        >
+                          fruit nerdle
+                        </motion.span>
+                      ) : phase === 'spinning' ? (
+                        <motion.span
+                          key="objective"
+                          className="absolute inset-0 flex items-center justify-center font-body text-sm sm:text-xl select-none text-center text-led-green"
+                          initial={{ opacity: 1 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0 }}
+                        >
+                          Nudge the wheels to make{' \u00a0'}
+                          <span className="font-bold text-lg sm:text-3xl led-glow tabular-nums">{puzzle.target}</span>
+                        </motion.span>
+                      ) : (
+                        <motion.div
+                          key="game"
+                          className="flex items-center w-full"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          {/* Left spacer for centering */}
+                          <div className="flex-1" />
+
+                          {/* Target - centered */}
+                          <div className="flex flex-col items-center">
+                            <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none">
+                              Target
+                            </span>
+                            <span className="text-xl sm:text-3xl font-bold font-mono text-led-green led-glow select-none tabular-nums">
+                              {puzzle.target}
+                            </span>
+                          </div>
+
+                          {/* Right section - hint or calc */}
+                          <div className="flex-1 flex justify-end">
+                            {showHint && (
+                              <div className="flex flex-col items-center">
+                                <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none whitespace-nowrap">
+                                  Solvable in
+                                </span>
+                                <span className="text-xl sm:text-3xl font-bold font-mono text-led-green led-glow select-none tabular-nums">
+                                  {hintValue}
+                                </span>
+                              </div>
+                            )}
+
+                            {showCalc && (
+                              <motion.div
+                                className="flex flex-col items-center"
+                                initial={{ opacity: 0, x: -8 }}
+                                animate={{ opacity: 1, x: 0 }}
+                              >
+                                <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none">
+                                  Calc
+                                </span>
+                                <span
+                                  className={`text-xl sm:text-3xl font-bold font-mono select-none tabular-nums ${
+                                    calcDisplay === '??' ? 'text-led-amber led-glow' : 'text-led-green led-glow'
+                                  }`}
+                                >
+                                  {calcDisplay}
+                                </span>
+                              </motion.div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Nudge up row - outside glass window */}
+          <div className="mx-2 sm:mx-3 mt-2 sm:mt-3 mb-1.5 sm:mb-2">
+            <NudgeRow
+              direction="up"
+              disabled={nudgeDisabled}
+              nudgeAccents={nudgeAccents}
+              onNudge={(i) => nudge(i, 'up')}
+            />
           </div>
 
-          {/* Header: title + LED marquee + logo, all vertically centered */}
-          <div className="relative flex items-center px-2 sm:px-3 py-2 sm:py-3">
-            {/* Title - left */}
-            <motion.h1
-              className="font-title font-bold text-white select-none tracking-wide leading-none text-base sm:text-2xl shrink-0 cursor-pointer"
-              initial={{ y: -10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              style={{ textShadow: '0 0 20px rgba(130, 4, 88, 0.6)' }}
-              onClick={() => { if (!isCelebrating) startCelebration(); }}
-            >
-              <span className="block">fruit</span>
-              <span className="block">nerdle</span>
-            </motion.h1>
+          {/* Glass reel window with chrome frame */}
+          <div className="relative w-fit mx-auto mb-1.5 sm:mb-2">
+            {/* Chrome surround */}
+            <div className="chrome-gradient rounded-lg" style={{ padding: '3px' }}>
+              {/* Inner dark window */}
+              <div
+                className="relative rounded-[6px] bg-gradient-to-b from-slate-800 to-slate-900 py-1.5 sm:py-2 px-0.5 shadow-inner overflow-hidden"
+                style={{ boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.6), inset 0 -2px 8px rgba(0,0,0,0.4)' }}
+              >
+                {/* Dials row */}
+                <div className="flex items-center justify-center gap-1 sm:gap-3">
+                  {puzzle.dials.map((dialConfig, i) => {
+                    const celebDisplay = isCelebrating && !spinningDials[i]
+                      ? getCelebrationDisplay(i, totalCoins)
+                      : undefined;
+                    return (
+                      <Dial
+                        key={`${puzzleIndex}-${i}`}
+                        config={dialConfig}
+                        state={effectiveDialStates[i]}
+                        phase={spinningDials[i] ? 'spinning' : phase}
+                        dialIndex={i}
+                        isSpinning={spinningDials[i]}
+                        isLocked={lockedDials[i]}
+                        overrideDisplay={celebDisplay}
+                      />
+                    );
+                  })}
+                </div>
 
-            {/* LED marquee display - true center */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="pointer-events-auto">
-            {(() => {
-              let calcResult: number | null = null;
-              if (phase === 'playing' || phase === 'won') {
-                const vals = effectiveDialStates.map((ds, i) => puzzle.dials[i].values[ds.currentIndex]);
-                calcResult = evaluateForDisplay(
-                  vals[0] as number,
-                  vals[1] as string as Operator,
-                  vals[2] as number,
-                  vals[3] as string as Operator,
-                  vals[4] as number,
-                );
-              }
-              return (
-                <TargetDisplay
-                  target={puzzle.target}
-                  calcResult={calcResult}
-                  isCorrect={isCelebrating || isCorrect}
-                  moveCount={moveCount}
-                  nudgeCount={nudgeCount}
-                  payout={calculatePayout(moveCount, minMoves, modeReductionRef.current)}
-                  minMoves={minMoves}
-                  phase={phase}
-                  celebrationTotal={celebrationPhase === 'revealed' ? totalCoins : undefined}
+                {/* Payline - thin center line */}
+                <div
+                  className="absolute pointer-events-none"
+                  style={{ left: 0, right: 0, top: '50%', height: '1px', background: 'rgba(0,0,0,0.3)', zIndex: 4 }}
                 />
-              );
-            })()}
+
+                {/* Left arrow */}
+                <div
+                  className="absolute pointer-events-none flex items-center"
+                  style={{ left: '-1px', top: '50%', transform: 'translateY(-50%)', zIndex: 5 }}
+                >
+                  <div style={{ width: 0, height: 0, borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderLeft: '10px solid rgba(0,0,0,0.7)' }} />
+                </div>
+
+                {/* Right arrow */}
+                <div
+                  className="absolute pointer-events-none flex items-center"
+                  style={{ right: '-1px', top: '50%', transform: 'translateY(-50%)', zIndex: 5 }}
+                >
+                  <div style={{ width: 0, height: 0, borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderRight: '10px solid rgba(0,0,0,0.7)' }} />
+                </div>
+
+                {/* Diagonal glass reflection */}
+                <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[6px]" style={{ zIndex: 6 }}>
+                  <div style={{
+                    position: 'absolute', top: '-20%', left: '-10%', width: '40%', height: '140%',
+                    background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.07) 45%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.07) 55%, transparent 60%)',
+                    transform: 'rotate(-15deg)',
+                  }} />
+                </div>
               </div>
             </div>
 
-            {/* Spacer to push logo right */}
-            <div className="flex-1" />
-
-            {/* Logo - right */}
-            <div className="shrink-0">
-              <NerdleLogo isSpinning={spinningDials[0] && !firstSpinDoneRef.current} size={36} />
-            </div>
+            {/* Marching color border overlay - shown on win (same size, no layout shift) */}
+            {(isCelebrating || isCorrect) && (
+              <div
+                className="absolute payline-marching rounded-lg pointer-events-none"
+                style={{ inset: 0, zIndex: 10 }}
+              />
+            )}
           </div>
 
-          {/* Reel window */}
-          <div className="relative mx-2 sm:mx-3 mb-3 rounded-lg border border-chrome-dark bg-gradient-to-b from-slate-800 to-slate-900 p-1.5 sm:p-2 shadow-inner">
-            {/* Glass overlay */}
-            <div className="absolute inset-0 glass-overlay rounded-lg z-10" />
+          {/* Nudge down row - always visible */}
+          <div className="mx-2 sm:mx-3 mb-1.5 sm:mb-2">
+            <NudgeRow
+              direction="down"
+              disabled={nudgeDisabled}
+              nudgeAccents={nudgeAccents}
+              onNudge={(i) => nudge(i, 'down')}
+            />
+          </div>
 
-            {/* Dials row */}
-            <div className="relative flex items-center justify-center gap-1 sm:gap-3">
-              {puzzle.dials.map((dialConfig, i) => {
-                const celebDisplay = isCelebrating && !spinningDials[i]
-                  ? getCelebrationDisplay(i, totalCoins)
-                  : undefined;
-                return (
-                  <Dial
-                    key={`${puzzleIndex}-${i}`}
-                    config={dialConfig}
-                    state={effectiveDialStates[i]}
-                    phase={spinningDials[i] ? 'spinning' : phase}
-                    dialIndex={i}
-                    isSpinning={spinningDials[i]}
-                    isWon={isCelebrating || isCorrect}
-                    isLocked={lockedDials[i]}
-                    hideBottomNudge={isCorrect || isCelebrating || (showLeverHint && phase === 'ready')}
-                    nudgeAccent={nudgeAccents[i]}
-                    overrideDisplay={celebDisplay}
-                    onNudgeUp={() => nudge(i, 'up')}
-                    onNudgeDown={() => nudge(i, 'down')}
-                  />
-                );
-              })}
+          {/* Bottom LCD status display */}
+          <div className="mx-2 sm:mx-3 mb-2 sm:mb-3">
+            <div
+              className="rounded-md overflow-hidden"
+              style={{
+                transition: lcdIsButton ? 'none' : 'all 300ms',
+                background: (showNextChallenge && !allSolved && !isCelebrating)
+                  ? (lcdLit ? '#ff5cb0' : '#ff2d95')
+                  : celebrationPhase === 'revealed'
+                    ? (lcdLit ? '#4ade80' : '#00ff88')
+                    : 'rgba(0,0,0,0.9)',
+                borderTop: '2px solid rgba(255,255,255,0.12)',
+                borderLeft: '2px solid rgba(255,255,255,0.1)',
+                borderBottom: '2px solid rgba(255,255,255,0.35)',
+                borderRight: '2px solid rgba(255,255,255,0.25)',
+                boxShadow: (showNextChallenge && !allSolved && !isCelebrating)
+                  ? (lcdLit
+                      ? '0 0 18px rgba(255,92,176,0.8), 0 0 36px rgba(255,45,149,0.4)'
+                      : '0 0 10px rgba(255,45,149,0.5), 0 0 20px rgba(255,45,149,0.2)')
+                  : celebrationPhase === 'revealed'
+                    ? (lcdLit
+                        ? '0 0 18px rgba(74,222,128,0.8), 0 0 36px rgba(0,255,136,0.4)'
+                        : '0 0 10px rgba(0,255,136,0.5), 0 0 20px rgba(0,255,136,0.2)')
+                    : 'none',
+              }}
+            >
+              <div className="flex items-center justify-center px-2 sm:px-3 py-1 sm:py-1.5 min-h-[42px] sm:min-h-[54px]">
+                <AnimatePresence mode="wait">
+                  {showLeverHint && phase === 'ready' ? (
+                    <motion.div
+                      key="lever"
+                      onClick={spin}
+                      className="font-bold text-slate-400 text-sm sm:text-base tracking-wider uppercase cursor-pointer select-none"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      Pull Lever to Start
+                    </motion.div>
+                  ) : showWinBanner && !allSolved && !isCelebrating ? (
+                    <motion.div
+                      key="win-banner"
+                      className="font-bold text-xl sm:text-2xl tracking-widest uppercase select-none rainbow-text"
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                    >
+                      You Win!
+                    </motion.div>
+                  ) : showNextChallenge && !allSolved && !isCelebrating ? (
+                    <motion.button
+                      key="next"
+                      onClick={nextPuzzle}
+                      className="font-bold text-black text-base sm:text-xl tracking-wider uppercase cursor-pointer select-none"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      Next Challenge
+                    </motion.button>
+                  ) : celebrationPhase === 'revealed' ? (
+                    <motion.button
+                      key="again"
+                      onClick={handlePlayAgain}
+                      className="font-bold text-black text-sm sm:text-base tracking-wider uppercase cursor-pointer select-none"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      Play Again
+                    </motion.button>
+                  ) : (
+                    <motion.div
+                      key="status"
+                      className="flex items-center w-full text-xs sm:text-sm font-medium text-slate-400 select-none"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      {/* Left: mode */}
+                      <div className="flex-1 flex justify-start">
+                        <button
+                          onClick={() => setMode(prev => MODE_ORDER[(MODE_ORDER.indexOf(prev) + 1) % 3])}
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-slate-400 hover:border-slate-300 hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                          <div
+                            className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bulb-glow shrink-0"
+                            style={{ backgroundColor: MODE_COLORS[mode], color: MODE_COLORS[mode] }}
+                          />
+                          <span className="font-semibold text-slate-300">{MODE_LABELS[mode]}</span>
+                        </button>
+                      </div>
+
+                      {/* Center: game nav */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={prevPuzzle}
+                          className="p-0.5 rounded-full hover:bg-white/10 transition-colors"
+                          aria-label="Previous puzzle"
+                        >
+                          <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4 text-slate-400" />
+                        </button>
+                        <span className="whitespace-nowrap">
+                          Game {puzzleIndex + 1}/{totalPuzzles}
+                        </span>
+                        <button
+                          onClick={nextPuzzle}
+                          className="p-0.5 rounded-full hover:bg-white/10 transition-colors"
+                          aria-label="Next puzzle"
+                        >
+                          <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-slate-400" />
+                        </button>
+                      </div>
+
+                      {/* Right: moves */}
+                      <div className="flex-1 flex justify-end">
+                        {!isCelebrating && (
+                          <span>
+                            Moves: <span className="font-bold text-led-amber" style={{ textShadow: '0 0 6px #ffcc00' }}>{moveCount}</span>
+                          </span>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
-
-            {/* PULL LEVER TO START hint - shown when user clicks machine in ready state */}
-            {showLeverHint && phase === 'ready' && (
-              <motion.div
-                onClick={spin}
-                className="relative z-20 w-full h-7 sm:h-8 rounded-lg bg-black border border-slate-600 font-bold text-slate-400 text-xs sm:text-sm tracking-wider uppercase cursor-pointer flex items-center justify-center"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                Pull Lever to Start
-              </motion.div>
-            )}
-
-            {/* NEXT CHALLENGE button - replaces bottom nudge buttons on win */}
-            {isCorrect && !allSolved && !isCelebrating && (
-              <motion.button
-                onClick={nextPuzzle}
-                className="relative z-20 w-full mt-1 h-7 sm:h-8 rounded-lg bg-black border border-red-500 font-bold text-red-500 text-xs sm:text-sm tracking-wider uppercase cursor-pointer flex items-center justify-center"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{
-                  opacity: 1,
-                  y: 0,
-                  boxShadow: [
-                    '0 0 4px rgba(239,68,68,0.3)',
-                    '0 0 16px 4px rgba(239,68,68,0.7)',
-                    '0 0 4px rgba(239,68,68,0.3)',
-                  ],
-                }}
-                transition={{
-                  opacity: { duration: 0.3 },
-                  y: { duration: 0.3 },
-                  boxShadow: { duration: 1, repeat: Infinity, ease: 'easeInOut' },
-                }}
-              >
-                Next Challenge
-              </motion.button>
-            )}
-
-            {/* PLAY AGAIN button - shown after celebration lands */}
-            {celebrationPhase === 'revealed' && (
-              <motion.button
-                onClick={handlePlayAgain}
-                className="relative z-20 w-full mt-1 h-7 sm:h-8 rounded-lg bg-black border border-led-green font-bold text-led-green text-xs sm:text-sm tracking-wider uppercase cursor-pointer flex items-center justify-center"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{
-                  opacity: 1,
-                  y: 0,
-                  boxShadow: [
-                    '0 0 4px rgba(0,255,136,0.3)',
-                    '0 0 16px 4px rgba(0,255,136,0.7)',
-                    '0 0 4px rgba(0,255,136,0.3)',
-                  ],
-                }}
-                transition={{
-                  opacity: { duration: 0.3 },
-                  y: { duration: 0.3 },
-                  boxShadow: { duration: 1, repeat: Infinity, ease: 'easeInOut' },
-                }}
-              >
-                Play Again
-              </motion.button>
-            )}
           </div>
 
           {/* Coin tray */}
           <CoinTray totalCoins={totalCoins} potentialCoins={potentialCoins} />
         </div>
 
-        {/* Lever assembly - mounted to the right side */}
-        <div className="absolute -right-10 sm:-right-14 top-[45%] -translate-y-1/2 flex items-end">
-          {/* Horizontal mounting bracket connecting machine to lever */}
-          <div className="w-6 sm:w-8 h-5 sm:h-6 chrome-gradient border border-chrome-dark border-l-0 rounded-r-sm shadow -mr-2 mb-1" />
-          <div className="relative z-10">
+        {/* Lever assembly */}
+        <div className="absolute -right-10 sm:-right-14 top-[45%] -translate-y-1/2 flex items-center z-[5]">
+          {/* 1. Big connector plate – matches machine body, anchors to right edge */}
+          <div
+            className="border border-chrome-dark border-l-0 rounded-r-md"
+            style={{
+              width: 'clamp(18px, 3vw, 26px)',
+              height: 'clamp(44px, 7vw, 64px)',
+              transform: 'translate(4px, 20px)',
+              background: 'linear-gradient(180deg, #58616e 0%, #3a4250 30%, #505a6c 50%, #3a4250 70%, #58616e 100%)',
+              boxShadow: '2px 0 6px rgba(0,0,0,0.3), inset -2px 0 4px rgba(255,255,255,0.1)',
+            }}
+          />
+          {/* 2. Small narrow chrome bridge – connects plate to lever shaft */}
+          <div
+            style={{
+              width: 'clamp(8px, 1.5vw, 12px)',
+              height: 'clamp(20px, 3.5vw, 30px)',
+              transform: 'translate(4px, 20px)',
+              background: 'linear-gradient(180deg, #8a9098 0%, #62666e 30%, #747880 50%, #62666e 70%, #8a9098 100%)',
+              boxShadow: '1px 2px 4px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.15)',
+              borderTop: '1px solid rgba(255,255,255,0.1)',
+              borderBottom: '1px solid rgba(0,0,0,0.3)',
+            }}
+          />
+          {/* 3. Arm shaft + 4. Ball */}
+          <div className="relative" style={{ transform: 'translate(-4px, -20px)' }}>
             <Lever phase={phase} onSpin={spin} />
           </div>
         </div>
-      </div>
-
-      {/* Game selector + move counter below machine */}
-      <div className="mt-3 flex self-center items-center gap-3 text-sm font-medium text-slate-400">
-        <button
-          onClick={() => setMode(prev => MODE_ORDER[(MODE_ORDER.indexOf(prev) + 1) % 3])}
-          className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-slate-600 hover:border-slate-400 transition-all"
-        >
-          <div
-            className="w-2 h-2 rounded-full bulb-glow"
-            style={{ backgroundColor: MODE_COLORS[mode], color: MODE_COLORS[mode] }}
-          />
-          <span className="text-xs font-semibold text-slate-300">{MODE_LABELS[mode]}</span>
-        </button>
-        <button
-          onClick={prevPuzzle}
-          className="p-0.5 rounded-full hover:bg-white/10 transition-colors"
-          aria-label="Previous puzzle"
-        >
-          <ChevronLeft className="w-4 h-4 text-slate-400" />
-        </button>
-        <span className="whitespace-nowrap">
-          Game {puzzleIndex + 1}/{totalPuzzles}
-        </span>
-        <button
-          onClick={nextPuzzle}
-          className="p-0.5 rounded-full hover:bg-white/10 transition-colors"
-          aria-label="Next puzzle"
-        >
-          <ChevronRight className="w-4 h-4 text-slate-400" />
-        </button>
-        {phase !== 'ready' && !isCelebrating && (
-          <>
-            <span className="text-slate-600">|</span>
-            <span>
-              Moves: <span className="font-bold text-led-amber" style={{ textShadow: '0 0 6px #ffcc00' }}>{moveCount}</span>
-            </span>
-          </>
-        )}
       </div>
 
       {/* Help button */}
@@ -552,9 +856,6 @@ export default function FruitMachine() {
         <div id="nerdlegame_D_1" />
         <div id="nerdlegame_M_1" style={{ paddingTop: 10 }} />
       </div>
-
-      {/* Reel design mockup - DELETE WHEN DONE */}
-      <ReelMockup />
 
       {/* Help modal */}
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
