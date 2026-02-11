@@ -1,5 +1,10 @@
 import type { FruitPuzzle, Operator } from '@/types/puzzle';
-import { evaluateExpression } from './evaluate';
+import { evaluateExpression, evaluateWord } from './evaluate';
+
+/** Check if a puzzle is a word puzzle (all letter dials). */
+export function isWordPuzzle(puzzle: FruitPuzzle): boolean {
+  return puzzle.dials[0].type === 'letter';
+}
 
 /**
  * Circular distance between two positions on a dial of given size.
@@ -40,8 +45,11 @@ export function minDistanceToAnySolution(
 /**
  * Evaluate a dial configuration and return the result (or null).
  */
-function evaluateConfig(puzzle: FruitPuzzle, indices: number[]): number | null {
+function evaluateConfig(puzzle: FruitPuzzle, indices: number[]): number | string | null {
   const values = indices.map((idx, i) => puzzle.dials[i].values[idx]);
+  if (isWordPuzzle(puzzle)) {
+    return evaluateWord(values);
+  }
   return evaluateExpression(
     values[0] as number,
     values[1] as string as Operator,
@@ -154,13 +162,7 @@ export function countSolutions(puzzle: FruitPuzzle): { count: number; solutions:
       for (let i2 = 0; i2 < d2.values.length; i2++) {
         for (let i3 = 0; i3 < d3.values.length; i3++) {
           for (let i4 = 0; i4 < d4.values.length; i4++) {
-            const result = evaluateExpression(
-              d0.values[i0] as number,
-              d1.values[i1] as string as Operator,
-              d2.values[i2] as number,
-              d3.values[i3] as string as Operator,
-              d4.values[i4] as number,
-            );
+            const result = evaluateConfig(puzzle, [i0, i1, i2, i3, i4]);
             if (result === puzzle.target) {
               solutions.push([i0, i1, i2, i3, i4]);
             }

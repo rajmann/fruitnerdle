@@ -179,6 +179,7 @@ export default function Dial({
             style={{
               transform: 'perspective(200px) rotateX(30deg)',
               transformOrigin: 'bottom center',
+              marginTop: '2px',
               marginBottom: '2px',
             }}
           >
@@ -215,7 +216,7 @@ export default function Dial({
             style={{
               transform: 'perspective(200px) rotateX(-30deg)',
               transformOrigin: 'top center',
-              marginTop: '2px',
+              marginBottom: '2px',
             }}
           >
             {isSpinning ? (

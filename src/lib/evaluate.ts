@@ -96,3 +96,10 @@ export function formatResult(val: number | null): string {
   if (Number.isInteger(val)) return String(val);
   return val.toFixed(1) + '...';
 }
+
+/**
+ * Evaluate a word puzzle: concatenate the 5 letter values into a string.
+ */
+export function evaluateWord(values: (number | string)[]): string {
+  return values.map(String).join('');
+}

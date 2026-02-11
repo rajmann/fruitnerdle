@@ -2,9 +2,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useFruitMachine } from '@/hooks/useFruitMachine';
-import { evaluateForDisplay } from '@/lib/evaluate';
-import { calculatePayout } from '@/lib/puzzleEngine';
+import { evaluateForDisplay, evaluateWord } from '@/lib/evaluate';
+import { calculatePayout, isWordPuzzle } from '@/lib/puzzleEngine';
 import type { FruitPuzzle, DialState, GamePhase, Operator } from '@/types/puzzle';
+import numberPuzzlesData from '@/data/puzzles.json';
+import wordPuzzlesData from '@/data/wordPuzzles.json';
+
+const numberPuzzles = numberPuzzlesData as FruitPuzzle[];
+const wordPuzzles = wordPuzzlesData as FruitPuzzle[];
 import Dial from './Dial';
 import NudgeButton from './NudgeButton';
 import Lever from './Lever';
@@ -51,21 +56,27 @@ function LightBulbs({ count = 9, mode = 'idle' as LightMode }: { count?: number;
   );
 }
 
-type GameMode = 'easy' | 'medium' | 'hard';
-const MODE_ORDER: GameMode[] = ['easy', 'medium', 'hard'];
-const MODE_LABELS: Record<GameMode, string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
-const MODE_COLORS: Record<GameMode, string> = { easy: '#44ff44', medium: '#ffcc00', hard: '#ff4444' };
+type DifficultyMode = 'easy' | 'medium' | 'hard';
+type PuzzleMode = 'numbers' | 'words';
+const NUMBER_MODE_ORDER: DifficultyMode[] = ['easy', 'medium', 'hard'];
+const WORD_MODE_ORDER: DifficultyMode[] = ['easy', 'hard'];
+const MODE_LABELS: Record<DifficultyMode, string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+const MODE_COLORS: Record<DifficultyMode, string> = { easy: '#44ff44', medium: '#ffcc00', hard: '#ff4444' };
 
 function getLockedDials(
   puzzle: FruitPuzzle,
   dialStates: DialState[],
-  mode: GameMode,
+  mode: DifficultyMode,
   phase: GamePhase,
 ): boolean[] {
   const none = [false, false, false, false, false];
   if (mode === 'hard' || phase !== 'playing') return none;
 
   const solution = puzzle.solutions[0];
+  if (isWordPuzzle(puzzle)) {
+    // Word mode easy: all correct letters lock
+    return puzzle.dials.map((_, i) => dialStates[i].currentIndex === solution[i]);
+  }
   return puzzle.dials.map((_, i) => {
     if (mode === 'medium' && i !== 1 && i !== 3) return false; // medium: only operators lock
     return dialStates[i].currentIndex === solution[i];
@@ -136,6 +147,9 @@ function NudgeRow({ direction, disabled, nudgeAccents, onNudge, pulse }: {
 }
 
 export default function FruitMachine() {
+  const puzzleMode: PuzzleMode = window.location.pathname === '/w' ? 'words' : 'numbers';
+  const activePuzzles = puzzleMode === 'words' ? wordPuzzles : numberPuzzles;
+
   const {
     puzzle,
     dialStates,
@@ -154,16 +168,19 @@ export default function FruitMachine() {
     prevPuzzle,
     selectPuzzle,
     onSpinComplete,
-  } = useFruitMachine();
+  } = useFruitMachine(activePuzzles);
+
+  const isWord = isWordPuzzle(puzzle);
 
   const [spinningDials, setSpinningDials] = useState<boolean[]>([false, false, false, false, false]);
   const [showHelp, setShowHelp] = useState(false);
   const [showLeverHint, setShowLeverHint] = useState(false);
-  const [mode, setMode] = useState<GameMode>('hard');
+  const [mode, setMode] = useState<DifficultyMode>('hard');
   const [showWinBanner, setShowWinBanner] = useState(false);
   const [showNextChallenge, setShowNextChallenge] = useState(false);
   const [lcdLit, setLcdLit] = useState(false);
   const [showNerdleConfirm, setShowNerdleConfirm] = useState(false);
+
 
   // Dial interaction hint — stays until first nudge
   const [showDialHint, setShowDialHint] = useState(false);
@@ -449,20 +466,23 @@ export default function FruitMachine() {
 
           {/* Unified LED marquee display */}
           {(() => {
-            let calcResult: number | null = null;
+            let calcDisplay = '??';
             if (phase === 'playing' || phase === 'won') {
               const vals = effectiveDialStates.map((ds, i) => puzzle.dials[i].values[ds.currentIndex]);
-              calcResult = evaluateForDisplay(
-                vals[0] as number,
-                vals[1] as string as Operator,
-                vals[2] as number,
-                vals[3] as string as Operator,
-                vals[4] as number,
-              );
-            }
-            let calcDisplay = '??';
-            if (calcResult !== null && Number.isInteger(calcResult)) {
-              calcDisplay = String(calcResult);
+              if (isWord) {
+                calcDisplay = evaluateWord(vals);
+              } else {
+                const calcResult = evaluateForDisplay(
+                  vals[0] as number,
+                  vals[1] as string as Operator,
+                  vals[2] as number,
+                  vals[3] as string as Operator,
+                  vals[4] as number,
+                );
+                if (calcResult !== null && Number.isInteger(calcResult)) {
+                  calcDisplay = String(calcResult);
+                }
+              }
             }
             const showWin = isCelebrating || isCorrect;
             const showHint = !showWin && nudgeCount === 0;
@@ -548,8 +568,11 @@ export default function FruitMachine() {
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.3 }}
                         >
-                          Nudge dials to make{' \u00a0'}
-                          <span className="tabular-nums animate-target-pulse" style={{ textShadow: '0 0 8px #ffcc00, 0 0 16px #ffcc00' }}>{puzzle.target}</span>
+                          {isWord ? (
+                            <>Nudge to make a 5 letter word</>
+                          ) : (
+                            <>Nudge dials to make{' \u00a0'}<span className="tabular-nums animate-target-pulse" style={{ textShadow: '0 0 8px #ffcc00, 0 0 16px #ffcc00' }}>{puzzle.target}</span></>
+                          )}
                         </motion.span>
                       ) : (
                         <motion.div
@@ -560,51 +583,63 @@ export default function FruitMachine() {
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.2 }}
                         >
-                          {/* Left spacer for centering */}
-                          <div className="flex-1" />
+                          {isWord ? (
+                            <>
+                              <div className="flex-1" />
+                              <span className="text-xl sm:text-3xl font-bold font-mono text-led-green led-glow select-none tabular-nums">
+                                Moves: <span className="text-led-amber" style={{ textShadow: '0 0 6px #ffcc00' }}>{moveCount}</span>
+                              </span>
+                              <div className="flex-1" />
+                            </>
+                          ) : (
+                            <>
+                              {/* Left spacer for centering */}
+                              <div className="flex-1" />
 
-                          {/* Target - centered */}
-                          <div className="flex flex-col items-center">
-                            <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none">
-                              Target
-                            </span>
-                            <span className="text-xl sm:text-3xl font-bold font-mono text-led-green led-glow select-none tabular-nums">
-                              {puzzle.target}
-                            </span>
-                          </div>
-
-                          {/* Right section - hint or calc */}
-                          <div className="flex-1 flex justify-end">
-                            {showHint && (
+                              {/* Target - centered */}
                               <div className="flex flex-col items-center">
-                                <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none whitespace-nowrap">
-                                  Solvable in
+                                <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none">
+                                  Target
                                 </span>
                                 <span className="text-xl sm:text-3xl font-bold font-mono text-led-green led-glow select-none tabular-nums">
-                                  {hintValue}
+                                  {puzzle.target}
                                 </span>
                               </div>
-                            )}
 
-                            {showCalc && (
-                              <motion.div
-                                className="flex flex-col items-center"
-                                initial={{ opacity: 0, x: -8 }}
-                                animate={{ opacity: 1, x: 0 }}
-                              >
-                                <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none">
-                                  Calc
-                                </span>
-                                <span
-                                  className={`text-xl sm:text-3xl font-bold font-mono select-none tabular-nums ${
-                                    calcDisplay === '??' ? 'text-led-amber led-glow' : 'text-led-green led-glow'
-                                  }`}
-                                >
-                                  {calcDisplay}
-                                </span>
-                              </motion.div>
-                            )}
-                          </div>
+                              {/* Right section - hint or calc */}
+                              <div className="flex-1 flex justify-end">
+                                {showHint && (
+                                  <div className="flex flex-col items-center">
+                                    <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none whitespace-nowrap">
+                                      Solvable in
+                                    </span>
+                                    <span className="text-xl sm:text-3xl font-bold font-mono text-led-green led-glow select-none tabular-nums">
+                                      {hintValue}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {showCalc && (
+                                  <motion.div
+                                    className="flex flex-col items-center"
+                                    initial={{ opacity: 0, x: -8 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                  >
+                                    <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none">
+                                      Calc
+                                    </span>
+                                    <span
+                                      className={`text-xl sm:text-3xl font-bold font-mono select-none tabular-nums ${
+                                        calcDisplay === '??' ? 'text-led-amber led-glow' : 'text-led-green led-glow'
+                                      }`}
+                                    >
+                                      {calcDisplay}
+                                    </span>
+                                  </motion.div>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -836,7 +871,13 @@ export default function FruitMachine() {
                       {/* Left: mode */}
                       <div className="flex-1 flex justify-start">
                         <button
-                          onClick={() => setMode(prev => MODE_ORDER[(MODE_ORDER.indexOf(prev) + 1) % 3])}
+                          onClick={() => {
+                            const order = isWord ? WORD_MODE_ORDER : NUMBER_MODE_ORDER;
+                            setMode(prev => {
+                              const idx = order.indexOf(prev);
+                              return order[(idx + 1) % order.length];
+                            });
+                          }}
                           className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-slate-400 hover:border-slate-300 hover:bg-white/10 transition-colors cursor-pointer"
                         >
                           <div
@@ -988,7 +1029,7 @@ export default function FruitMachine() {
       </div>
 
       {/* Help modal */}
-      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} puzzleMode={puzzleMode} />}
 
       {/* Nerdle confirm modal */}
       {showNerdleConfirm && (

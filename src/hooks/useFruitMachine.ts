@@ -1,10 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import type { FruitPuzzle, DialState, GamePhase, Operator } from '@/types/puzzle';
-import { evaluateExpression } from '@/lib/evaluate';
-import { findValidSpinStop, minDistanceToAnySolution } from '@/lib/puzzleEngine';
-import puzzlesData from '@/data/puzzles.json';
-
-const puzzles = puzzlesData as FruitPuzzle[];
+import { evaluateExpression, evaluateWord } from '@/lib/evaluate';
+import { findValidSpinStop, minDistanceToAnySolution, isWordPuzzle } from '@/lib/puzzleEngine';
 
 /** Compute a safe resting position for preview rows in ready state. */
 function computeRestingPosition(puzzle: FruitPuzzle): DialState[] {
@@ -21,7 +18,7 @@ export interface UseFruitMachineReturn {
   nudgeCount: number;
   minMoves: number;
   spinStopIndices: number[];
-  currentResult: number | null;
+  currentResult: number | string | null;
   isCorrect: boolean;
   puzzleIndex: number;
   totalPuzzles: number;
@@ -40,8 +37,11 @@ function getDialValues(puzzle: FruitPuzzle, dialStates: DialState[]) {
   return dialStates.map((ds, i) => puzzle.dials[i].values[ds.currentIndex]);
 }
 
-function evaluate(puzzle: FruitPuzzle, dialStates: DialState[]): number | null {
+function evaluate(puzzle: FruitPuzzle, dialStates: DialState[]): number | string | null {
   const values = getDialValues(puzzle, dialStates);
+  if (isWordPuzzle(puzzle)) {
+    return evaluateWord(values);
+  }
   return evaluateExpression(
     values[0] as number,
     values[1] as string as Operator,
@@ -51,7 +51,7 @@ function evaluate(puzzle: FruitPuzzle, dialStates: DialState[]): number | null {
   );
 }
 
-export function useFruitMachine(): UseFruitMachineReturn {
+export function useFruitMachine(puzzles: FruitPuzzle[]): UseFruitMachineReturn {
   const [puzzleIndex, setPuzzleIndex] = useState(0);
   const [phase, setPhase] = useState<GamePhase>('ready');
   const [moveCount, setMoveCount] = useState(0);

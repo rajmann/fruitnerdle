@@ -1,13 +1,13 @@
 export type Operator = '+' | '-' | '*' | '/';
 
 export interface DialConfig {
-  type: 'number' | 'operator';
+  type: 'number' | 'operator' | 'letter';
   values: (number | string)[];
 }
 
 export interface FruitPuzzle {
   id: string;
-  target: number;
+  target: number | string;
   dials: [DialConfig, DialConfig, DialConfig, DialConfig, DialConfig];
   solutions: number[][];
 }

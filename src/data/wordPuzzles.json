@@ -1,0 +1,62 @@
+[
+  {
+    "id": "w1",
+    "target": "FLAME",
+    "dials": [
+      { "type": "letter", "values": ["F", "B", "K", "R", "W"] },
+      { "type": "letter", "values": ["L", "N", "P", "S", "T"] },
+      { "type": "letter", "values": ["A", "E", "I", "O", "U"] },
+      { "type": "letter", "values": ["M", "D", "G", "J", "V"] },
+      { "type": "letter", "values": ["E", "A", "I", "O", "Y"] }
+    ],
+    "solutions": [[0, 0, 0, 0, 0]]
+  },
+  {
+    "id": "w2",
+    "target": "GHOST",
+    "dials": [
+      { "type": "letter", "values": ["G", "B", "D", "K", "W"] },
+      { "type": "letter", "values": ["H", "F", "L", "N", "R"] },
+      { "type": "letter", "values": ["O", "A", "E", "I", "U"] },
+      { "type": "letter", "values": ["S", "C", "M", "P", "T"] },
+      { "type": "letter", "values": ["T", "D", "K", "N", "Y"] }
+    ],
+    "solutions": [[0, 0, 0, 0, 0]]
+  },
+  {
+    "id": "w3",
+    "target": "BRICK",
+    "dials": [
+      { "type": "letter", "values": ["B", "D", "F", "H", "N"] },
+      { "type": "letter", "values": ["R", "K", "L", "M", "W"] },
+      { "type": "letter", "values": ["I", "A", "E", "O", "U"] },
+      { "type": "letter", "values": ["C", "G", "J", "P", "T"] },
+      { "type": "letter", "values": ["K", "D", "N", "S", "Y"] }
+    ],
+    "solutions": [[0, 0, 0, 0, 0]]
+  },
+  {
+    "id": "w4",
+    "target": "PLANT",
+    "dials": [
+      { "type": "letter", "values": ["P", "B", "D", "G", "K"] },
+      { "type": "letter", "values": ["L", "F", "M", "R", "W"] },
+      { "type": "letter", "values": ["A", "E", "I", "O", "U"] },
+      { "type": "letter", "values": ["N", "C", "H", "S", "V"] },
+      { "type": "letter", "values": ["T", "D", "K", "P", "Y"] }
+    ],
+    "solutions": [[0, 0, 0, 0, 0]]
+  },
+  {
+    "id": "w5",
+    "target": "SHRUG",
+    "dials": [
+      { "type": "letter", "values": ["S", "C", "F", "K", "W"] },
+      { "type": "letter", "values": ["H", "B", "D", "L", "P"] },
+      { "type": "letter", "values": ["R", "A", "E", "I", "O"] },
+      { "type": "letter", "values": ["U", "G", "J", "M", "V"] },
+      { "type": "letter", "values": ["G", "D", "K", "N", "T"] }
+    ],
+    "solutions": [[0, 0, 0, 0, 0]]
+  }
+]
