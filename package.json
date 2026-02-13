@@ -2,11 +2,14 @@
   "name": "fruit-nerdle",
   "version": "1.0.0",
   "type": "module",
+  "homepage": "https://nerdlegame.com/fruitnerdle",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "generate-puzzles": "tsx scripts/generatePuzzles.ts"
+    "generate-puzzles": "tsx scripts/generatePuzzles.ts",
+    "deploySub": "aws s3 sync dist/ s3://nerdle-serverless-app/fruitnerdle --acl public-read",
+    "invalidateSub": "aws cloudfront create-invalidation --distribution-id E2GV7CU2G3KWL8 --paths \"/fruitnerdle/*\" \"/fruitnerdle\" "
   },
   "dependencies": {
     "react": "^18.3.1",

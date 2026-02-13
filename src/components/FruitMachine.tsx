@@ -147,7 +147,8 @@ function NudgeRow({ direction, disabled, nudgeAccents, onNudge, pulse }: {
 }
 
 export default function FruitMachine() {
-  const puzzleMode: PuzzleMode = window.location.pathname === '/w' ? 'words' : 'numbers';
+  // Support both root (/w) and subfolder (/fruitnerdle/w) deployment
+const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words' : 'numbers';
   const activePuzzles = puzzleMode === 'words' ? wordPuzzles : numberPuzzles;
 
   const {
