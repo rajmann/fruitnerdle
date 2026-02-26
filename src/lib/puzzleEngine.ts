@@ -102,12 +102,18 @@ function previewRowsAreSafe(puzzle: FruitPuzzle, candidate: number[]): boolean {
 }
 
 /**
- * Non-blank indices for each dial (precomputed for spin stop generation).
+ * Preferred spin-stop indices per dial.
+ * Dials with blanks: land ON a blank so the player must nudge at least once.
+ * Dials without blanks: any index is valid.
  */
-function validIndicesPerDial(puzzle: FruitPuzzle): number[][] {
-  return puzzle.dials.map(d =>
-    d.values.map((v, i) => ({ v, i })).filter(x => x.v !== '').map(x => x.i)
-  );
+function spinStopCandidateIndices(puzzle: FruitPuzzle): number[][] {
+  return puzzle.dials.map(d => {
+    const blanks = d.values.map((v, i) => ({ v, i })).filter(x => x.v === '').map(x => x.i);
+    // If dial has blanks, prefer starting on a blank
+    if (blanks.length > 0) return blanks;
+    // Otherwise all indices are valid
+    return d.values.map((_, i) => i);
+  });
 }
 
 /**
@@ -116,7 +122,7 @@ function validIndicesPerDial(puzzle: FruitPuzzle): number[][] {
  * on blank positions, and whose preview rows don't reveal the answer.
  */
 export function findValidSpinStop(puzzle: FruitPuzzle, minDistance = 3): number[] {
-  const validIndices = validIndicesPerDial(puzzle);
+  const validIndices = spinStopCandidateIndices(puzzle);
   const MAX_ATTEMPTS = 500;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -139,7 +145,7 @@ export function findValidSpinStop(puzzle: FruitPuzzle, minDistance = 3): number[
 }
 
 function findSpinStopExhaustive(puzzle: FruitPuzzle, minDistance: number): number[] {
-  const validIndices = validIndicesPerDial(puzzle);
+  const validIndices = spinStopCandidateIndices(puzzle);
 
   // Build all valid combinations using only non-blank indices
   const stack: number[][] = [[]];

@@ -5,10 +5,11 @@ import type { GamePhase } from '@/types/puzzle';
 interface LeverProps {
   phase: GamePhase;
   onSpin: () => void;
+  canPull?: boolean;
 }
 
-export default function Lever({ phase, onSpin }: LeverProps) {
-  const canSpin = phase === 'ready' || phase === 'playing';
+export default function Lever({ phase, onSpin, canPull }: LeverProps) {
+  const canSpin = canPull ?? (phase === 'ready' || phase === 'playing');
   const [pulled, setPulled] = useState(false);
   const [lit, setLit] = useState(false);
   const pulledRef = useRef(false);
@@ -18,10 +19,10 @@ export default function Lever({ phase, onSpin }: LeverProps) {
 
   // Simple on/off toggle for ball glow – 500ms on, 500ms off
   useEffect(() => {
-    if (phase !== 'ready' || pulled) { setLit(false); return; }
+    if (!canSpin || pulled) { setLit(false); return; }
     const id = setInterval(() => setLit(l => !l), 500);
     return () => clearInterval(id);
-  }, [phase, pulled]);
+  }, [canSpin, pulled]);
 
   // Motion value for drag tracking
   const dragY = useMotionValue(0);

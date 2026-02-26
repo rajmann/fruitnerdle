@@ -77,14 +77,22 @@ export function useFruitMachine(puzzles: FruitPuzzle[]): UseFruitMachineReturn {
     hasSpunRef.current = false;
   }
 
-  const puzzle = puzzles[puzzleIndex];
+  // Clamp index: when puzzles array changes this render, puzzleIndex still holds
+  // the old value (setPuzzleIndex(0) above is queued, not immediate).
+  const isTransitioning = puzzles !== prevPuzzles;
+  const effectivePuzzleIndex = Math.min(puzzleIndex, puzzles.length - 1);
+  const puzzle = puzzles[effectivePuzzleIndex];
 
-  const currentResult = phase === 'playing' || phase === 'won'
+  // Don't evaluate during transition renders: old dialStates + new puzzle can
+  // accidentally produce isCorrect=true, firing a spurious win timer.
+  const currentResult = !isTransitioning && (phase === 'playing' || phase === 'won')
     ? evaluate(puzzle, dialStates)
     : null;
   const isCorrect = currentResult === puzzle.target;
 
   const spin = useCallback(() => {
+    // Clear any pending win timer to prevent it firing mid-spin
+    if (winTimerRef.current) { clearTimeout(winTimerRef.current); winTimerRef.current = null; }
     const stopIndices = findValidSpinStop(puzzle);
     const minDist = minDistanceToAnySolution(stopIndices, puzzle.solutions, puzzle.dials);
     setSpinStopIndices(stopIndices);
