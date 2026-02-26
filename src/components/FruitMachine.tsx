@@ -1,15 +1,56 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useFruitMachine } from '@/hooks/useFruitMachine';
-import { evaluateForDisplay, evaluateWord } from '@/lib/evaluate';
-import { calculatePayout, isWordPuzzle } from '@/lib/puzzleEngine';
-import type { FruitPuzzle, DialState, GamePhase, Operator } from '@/types/puzzle';
-import numberPuzzlesData from '@/data/puzzles.json';
-import wordPuzzlesData from '@/data/wordPuzzles.json';
+import { evaluateForDisplay } from '@/lib/evaluate';
+import { calculatePayout } from '@/lib/puzzleEngine';
+import type { DaySet, FruitPuzzle, DialState, GamePhase, Operator } from '@/types/puzzle';
+import allDaysData from '@/data/puzzles.json';
 
-const numberPuzzles = numberPuzzlesData as FruitPuzzle[];
-const wordPuzzles = wordPuzzlesData as FruitPuzzle[];
+const allDays = allDaysData as DaySet[];
+
+/** Day 1 epoch: 2026-03-01 */
+const EPOCH = new Date('2026-03-01T00:00:00');
+
+function getDayNumber(date: Date): number {
+  const ms = date.setHours(0, 0, 0, 0) - EPOCH.getTime();
+  return Math.floor(ms / 86400000) + 1;
+}
+
+function parseDateFromPath(path: string): Date | null {
+  // Support both root (/20260212) and subfolder (/fruitnerdle/20260212) deployment
+  const match = path.match(/\/(\d{8})$/);
+  if (!match) return null;
+  const s = match[1];
+  const year = parseInt(s.slice(0, 4));
+  const month = parseInt(s.slice(4, 6)) - 1;
+  const day = parseInt(s.slice(6, 8));
+  const date = new Date(year, month, day);
+  if (isNaN(date.getTime())) return null;
+  return date;
+}
+
+function getDayPuzzles(): { puzzles: FruitPuzzle[]; dayNum: number } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const pathDate = parseDateFromPath(window.location.pathname);
+  let targetDate = today;
+
+  if (pathDate) {
+    pathDate.setHours(0, 0, 0, 0);
+    // Only allow past or today, not future
+    if (pathDate <= today) {
+      targetDate = pathDate;
+    }
+  }
+
+  const dayNum = getDayNumber(targetDate);
+  // Wrap around available days
+  const dayIndex = ((dayNum - 1) % allDays.length + allDays.length) % allDays.length;
+  return { puzzles: allDays[dayIndex].puzzles as FruitPuzzle[], dayNum };
+}
+
 import Dial from './Dial';
 import NudgeButton from './NudgeButton';
 import Lever from './Lever';
@@ -57,9 +98,7 @@ function LightBulbs({ count = 9, mode = 'idle' as LightMode }: { count?: number;
 }
 
 type DifficultyMode = 'easy' | 'medium' | 'hard';
-type PuzzleMode = 'numbers' | 'words';
-const NUMBER_MODE_ORDER: DifficultyMode[] = ['easy', 'medium', 'hard'];
-const WORD_MODE_ORDER: DifficultyMode[] = ['easy', 'hard'];
+const MODE_ORDER: DifficultyMode[] = ['easy', 'medium', 'hard'];
 const MODE_LABELS: Record<DifficultyMode, string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 const MODE_COLORS: Record<DifficultyMode, string> = { easy: '#44ff44', medium: '#ffcc00', hard: '#ff4444' };
 
@@ -73,10 +112,6 @@ function getLockedDials(
   if (mode === 'hard' || phase !== 'playing') return none;
 
   const solution = puzzle.solutions[0];
-  if (isWordPuzzle(puzzle)) {
-    // Word mode easy: all correct letters lock
-    return puzzle.dials.map((_, i) => dialStates[i].currentIndex === solution[i]);
-  }
   return puzzle.dials.map((_, i) => {
     if (mode === 'medium' && i !== 1 && i !== 3) return false; // medium: only operators lock
     return dialStates[i].currentIndex === solution[i];
@@ -88,13 +123,13 @@ function getCelebrationDisplay(dialIndex: number, totalCoins: number): React.Rea
   if (dialIndex === 2) {
     // Center dial: gold coin with total
     return (
-      <div className="flex items-center justify-center w-10 h-10 sm:w-16 sm:h-16 rounded-full"
+      <div className="flex items-center justify-center w-8 h-8 sm:w-[3.2rem] sm:h-[3.2rem] rounded-full"
         style={{
           background: 'linear-gradient(135deg, #ffd700 0%, #ffec80 30%, #daa520 70%, #b8860b 100%)',
           boxShadow: '0 0 10px 2px rgba(255,215,0,0.5), inset 0 1px 3px rgba(255,255,255,0.5)',
           border: '2px solid #996515',
         }}>
-        <span className="text-sm sm:text-xl font-bold font-mono leading-none"
+        <span className="text-xs sm:text-lg font-bold font-mono leading-none"
           style={{ color: '#2a1500' }}>
           ñ{totalCoins}
         </span>
@@ -146,10 +181,118 @@ function NudgeRow({ direction, disabled, nudgeAccents, onNudge, pulse }: {
   );
 }
 
+/** Calendar date picker */
+function CalendarPicker({ onChooseDay }: { onChooseDay: (date: Date) => void }) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Start viewing the most recent valid month
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+
+  const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  const DAY_HEADERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  // First day of month (0=Sun), days in month
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  // Convert Sunday=0 to Monday-first: Mon=0, Tue=1, ... Sun=6
+  const startOffset = (firstDay + 6) % 7;
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+  // Can navigate back to epoch month, forward to current month
+  const epochMonth = EPOCH.getFullYear() * 12 + EPOCH.getMonth();
+  const todayMonth = today.getFullYear() * 12 + today.getMonth();
+  const currentViewMonth = viewYear * 12 + viewMonth;
+  const canGoBack = currentViewMonth > epochMonth;
+  const canGoForward = currentViewMonth < todayMonth;
+
+  const goBack = () => {
+    if (!canGoBack) return;
+    if (viewMonth === 0) { setViewYear(viewYear - 1); setViewMonth(11); }
+    else setViewMonth(viewMonth - 1);
+  };
+  const goForward = () => {
+    if (!canGoForward) return;
+    if (viewMonth === 11) { setViewYear(viewYear + 1); setViewMonth(0); }
+    else setViewMonth(viewMonth + 1);
+  };
+
+  const isDateValid = (d: Date) => d >= EPOCH && d < today;
+
+  // Build grid cells
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(viewYear, viewMonth, d));
+
+  return (
+    <div className="flex flex-col gap-2">
+      {/* Month/year nav */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={goBack}
+          disabled={!canGoBack}
+          className="p-1 rounded hover:bg-white/10 transition-colors disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+        >
+          <ChevronLeft className="w-5 h-5 text-slate-300" />
+        </button>
+        <span className="text-sm font-semibold text-white">
+          {MONTH_NAMES[viewMonth]} {viewYear}
+        </span>
+        <button
+          onClick={goForward}
+          disabled={!canGoForward}
+          className="p-1 rounded hover:bg-white/10 transition-colors disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+        >
+          <ChevronRight className="w-5 h-5 text-slate-300" />
+        </button>
+      </div>
+
+      {/* Day headers */}
+      <div className="grid grid-cols-7 gap-0.5">
+        {DAY_HEADERS.map((h, i) => (
+          <div key={i} className="text-center text-xs font-semibold text-slate-500 py-1">{h}</div>
+        ))}
+
+        {/* Day cells */}
+        {cells.map((date, i) => {
+          if (!date) return <div key={`empty-${i}`} />;
+          const valid = isDateValid(date);
+          const dayNum = valid ? getDayNumber(date) : 0;
+          return (
+            <button
+              key={date.getDate()}
+              disabled={!valid}
+              onClick={() => valid && onChooseDay(date)}
+              className={`
+                relative aspect-square flex items-center justify-center rounded text-sm transition-colors
+                ${valid
+                  ? 'text-white hover:bg-nerdle-teal/40 cursor-pointer'
+                  : 'text-slate-600 cursor-not-allowed'
+                }
+              `}
+              title={valid ? `#${dayNum}` : undefined}
+            >
+              {date.getDate()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function FruitMachine() {
-  // Support both root (/w) and subfolder (/fruitnerdle/w) deployment
-const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words' : 'numbers';
-  const activePuzzles = puzzleMode === 'words' ? wordPuzzles : numberPuzzles;
+  const [{ puzzles: activePuzzles, dayNum: gameNumber }, setActiveGame] = useState(() => getDayPuzzles());
+  const [showDatePicker, setShowDatePicker] = useState(() => {
+    // Open date picker automatically if URL has an invalid date
+    const pathDate = parseDateFromPath(window.location.pathname);
+    if (!pathDate) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    pathDate.setHours(0, 0, 0, 0);
+    return pathDate < EPOCH || pathDate > today;
+  });
 
   const {
     puzzle,
@@ -166,12 +309,9 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
     spin,
     nudge,
     nextPuzzle,
-    prevPuzzle,
     selectPuzzle,
     onSpinComplete,
   } = useFruitMachine(activePuzzles);
-
-  const isWord = isWordPuzzle(puzzle);
 
   const [spinningDials, setSpinningDials] = useState<boolean[]>([false, false, false, false, false]);
   const [showHelp, setShowHelp] = useState(false);
@@ -282,12 +422,13 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
 
     timers.push(setTimeout(() => {
       setCelebrationPhase('revealed');
+      setShowWinBanner(false);
     }, baseDelay + 4 * stagger + 300));
 
     celebrationTimersRef.current = timers;
   };
 
-  const handlePlayAgain = () => {
+  const resetCelebration = useCallback(() => {
     celebrationTimersRef.current.forEach(clearTimeout);
     celebrationTimersRef.current = [];
     setCelebrationPhase('none');
@@ -296,18 +437,48 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
     setTotalCoins(0);
     puzzlePayoutsRef.current.clear();
     modeReductionRef.current = 0;
-    selectPuzzle(0);
-  };
+    prevCorrectRef.current = false;
+    pendingSpinRef.current = false;
+    setShowWinBanner(false);
+    setShowNextChallenge(false);
+  }, []);
+
+  const handleRandomPuzzle = useCallback(() => {
+    resetCelebration();
+    const randomDayIdx = Math.floor(Math.random() * allDays.length);
+    const dayPuzzleList = allDays[randomDayIdx].puzzles as FruitPuzzle[];
+    const randomPuzzleIdx = Math.floor(Math.random() * dayPuzzleList.length);
+    setActiveGame({ puzzles: [dayPuzzleList[randomPuzzleIdx]], dayNum: 0 });
+  }, [resetCelebration]);
+
+  const handleChooseDay = useCallback((date: Date) => {
+    resetCelebration();
+    const num = getDayNumber(date);
+    const dayIndex = ((num - 1) % allDays.length + allDays.length) % allDays.length;
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    history.pushState(null, '', `/${yyyy}${mm}${dd}`);
+    setActiveGame({ puzzles: allDays[dayIndex].puzzles as FruitPuzzle[], dayNum: num });
+  }, [resetCelebration]);
+
+  // Auto-spin after lever-triggered puzzle advance
+  const pendingSpinRef = useRef(false);
 
   // Reset first-spin tracker when puzzle changes
   useEffect(() => {
     firstSpinDoneRef.current = false;
-  }, [puzzleIndex]);
+    if (pendingSpinRef.current) {
+      pendingSpinRef.current = false;
+      spin();
+    }
+  }, [puzzleIndex, spin]);
 
   // (lever hint hide/show handled by auto-cycle effect above)
 
-  // Detect win → award coins + show "YOU WIN!" banner for 3s, then "NEXT CHALLENGE"
-  // showNextChallenge is only set true when the 3s timer fires — no timing race
+  // Detect win → award coins + show "YOU WIN!" banner, then "NEXT CHALLENGE"
+  // For non-final puzzles: banner shows 3s then transitions to "NEXT CHALLENGE"
+  // For final puzzle (allSolved): banner persists through celebration spin
   useEffect(() => {
     if (isCorrect && !prevCorrectRef.current) {
       const payout = calculatePayout(moveCount, minMoves, modeReductionRef.current);
@@ -315,12 +486,18 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
       puzzlePayoutsRef.current.set(puzzleIndex, payout);
       setShowWinBanner(true);
       setShowNextChallenge(false);
-      const timer = setTimeout(() => {
-        setShowWinBanner(false);
-        setShowNextChallenge(true);
-      }, 3000);
+      // Don't auto-clear banner for final puzzle — celebration reveal will handle it
+      const justSolvedAll = puzzlePayoutsRef.current.size >= totalPuzzles;
+      if (!justSolvedAll) {
+        const timer = setTimeout(() => {
+          setShowWinBanner(false);
+          setShowNextChallenge(true);
+        }, 3000);
+        prevCorrectRef.current = isCorrect;
+        return () => clearTimeout(timer);
+      }
       prevCorrectRef.current = isCorrect;
-      return () => clearTimeout(timer);
+      return;
     }
     if (!isCorrect) {
       setShowWinBanner(false);
@@ -362,14 +539,15 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
   }, [lcdIsButton]);
 
   // Trigger celebration when all puzzles solved
+  // Start after a short pause so "You Win!" has a moment to display
   useEffect(() => {
-    if (phase === 'won' && allSolved && !celebrationTriggeredRef.current) {
+    if (isCorrect && allSolved && !celebrationTriggeredRef.current) {
       celebrationTriggeredRef.current = true;
       const timer = setTimeout(() => startCelebration(), 1500);
       celebrationTimersRef.current.push(timer);
       return () => clearTimeout(timer);
     }
-  }, [phase, allSolved]);
+  }, [isCorrect, allSolved]);
 
   // Handle spin animation sequence
   useEffect(() => {
@@ -451,10 +629,10 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
         <div id="nerdlegame_D_x1" className="desktopSideAd mr-2 ml-2" />
 
         {/* Center column */}
-        <div className="flex flex-col sm:items-center flex-1 min-w-0 max-w-xl">
+        <div className="flex flex-col sm:items-center flex-1 min-w-0 max-w-xl sm:px-8">
 
       {/* ===== SLOT MACHINE BODY ===== */}
-      <div className="relative mr-10 sm:mr-14">
+      <div className="relative mr-10 sm:mr-[72px]">
         <div
           className="relative z-10 rounded-2xl border-2 border-chrome-dark shadow-2xl overflow-hidden"
           style={{
@@ -470,19 +648,15 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
             let calcDisplay = '??';
             if (phase === 'playing' || phase === 'won') {
               const vals = effectiveDialStates.map((ds, i) => puzzle.dials[i].values[ds.currentIndex]);
-              if (isWord) {
-                calcDisplay = evaluateWord(vals);
-              } else {
-                const calcResult = evaluateForDisplay(
-                  vals[0] as number,
-                  vals[1] as string as Operator,
-                  vals[2] as number,
-                  vals[3] as string as Operator,
-                  vals[4] as number,
-                );
-                if (calcResult !== null && Number.isInteger(calcResult)) {
-                  calcDisplay = String(calcResult);
-                }
+              const calcResult = evaluateForDisplay(
+                vals[0] as number,
+                vals[1] as string as Operator,
+                vals[2] as number,
+                vals[3] as string as Operator,
+                vals[4] as number,
+              );
+              if (calcResult !== null && Number.isInteger(calcResult)) {
+                calcDisplay = String(calcResult);
               }
             }
             const showWin = isCelebrating || isCorrect;
@@ -520,6 +694,9 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
                     <span className="font-title font-bold text-4xl sm:text-6xl text-led-green select-none leading-none led-glow" style={{ position: 'relative', top: '-2px' }}>
                       n
                     </span>
+                    <span className="font-mono font-bold text-led-green/60 select-none leading-none text-center" style={{ fontSize: '17px', position: 'relative', top: '-14px', lineHeight: '0.9' }}>
+                      {gameNumber > 0 ? `#${gameNumber}` : <><span className="block" style={{ fontSize: '11px' }}>free</span><span className="block" style={{ fontSize: '11px' }}>play</span></>}
+                    </span>
                   </div>
 
                   {/* Content area */}
@@ -528,7 +705,7 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
                       {showWin ? (
                         <motion.div
                           key="win"
-                          className="flex flex-col items-center"
+                          className="absolute inset-0 flex flex-col items-center justify-center"
                           initial={{ opacity: 0, scale: 0.8 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.8 }}
@@ -569,11 +746,7 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.3 }}
                         >
-                          {isWord ? (
-                            <>Nudge to make a 5 letter word</>
-                          ) : (
-                            <>Nudge dials to make{' \u00a0'}<span className="tabular-nums animate-target-pulse" style={{ textShadow: '0 0 8px #ffcc00, 0 0 16px #ffcc00' }}>{puzzle.target}</span></>
-                          )}
+                          Nudge dials to make{' \u00a0'}<span className="tabular-nums animate-target-pulse" style={{ textShadow: '0 0 8px #ffcc00, 0 0 16px #ffcc00' }}>{puzzle.target}</span>
                         </motion.span>
                       ) : (
                         <motion.div
@@ -584,63 +757,51 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.2 }}
                         >
-                          {isWord ? (
-                            <>
-                              <div className="flex-1" />
-                              <span className="text-xl sm:text-3xl font-bold font-mono text-led-green led-glow select-none tabular-nums">
-                                Moves: <span className="text-led-amber" style={{ textShadow: '0 0 6px #ffcc00' }}>{moveCount}</span>
-                              </span>
-                              <div className="flex-1" />
-                            </>
-                          ) : (
-                            <>
-                              {/* Left spacer for centering */}
-                              <div className="flex-1" />
+                          {/* Left spacer for centering */}
+                          <div className="flex-1" />
 
-                              {/* Target - centered */}
+                          {/* Target - centered */}
+                          <div className="flex flex-col items-center">
+                            <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none">
+                              Target
+                            </span>
+                            <span className="text-xl sm:text-3xl font-bold font-mono text-led-green led-glow select-none tabular-nums">
+                              {puzzle.target}
+                            </span>
+                          </div>
+
+                          {/* Right section - hint or calc */}
+                          <div className="flex-1 flex justify-end">
+                            {showHint && (
                               <div className="flex flex-col items-center">
-                                <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none">
-                                  Target
+                                <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none whitespace-nowrap">
+                                  Solvable in
                                 </span>
                                 <span className="text-xl sm:text-3xl font-bold font-mono text-led-green led-glow select-none tabular-nums">
-                                  {puzzle.target}
+                                  {hintValue}
                                 </span>
                               </div>
+                            )}
 
-                              {/* Right section - hint or calc */}
-                              <div className="flex-1 flex justify-end">
-                                {showHint && (
-                                  <div className="flex flex-col items-center">
-                                    <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none whitespace-nowrap">
-                                      Solvable in
-                                    </span>
-                                    <span className="text-xl sm:text-3xl font-bold font-mono text-led-green led-glow select-none tabular-nums">
-                                      {hintValue}
-                                    </span>
-                                  </div>
-                                )}
-
-                                {showCalc && (
-                                  <motion.div
-                                    className="flex flex-col items-center"
-                                    initial={{ opacity: 0, x: -8 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                  >
-                                    <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none">
-                                      Calc
-                                    </span>
-                                    <span
-                                      className={`text-xl sm:text-3xl font-bold font-mono select-none tabular-nums ${
-                                        calcDisplay === '??' ? 'text-led-amber led-glow' : 'text-led-green led-glow'
-                                      }`}
-                                    >
-                                      {calcDisplay}
-                                    </span>
-                                  </motion.div>
-                                )}
-                              </div>
-                            </>
-                          )}
+                            {showCalc && (
+                              <motion.div
+                                className="flex flex-col items-center"
+                                initial={{ opacity: 0, x: -8 }}
+                                animate={{ opacity: 1, x: 0 }}
+                              >
+                                <span className="text-[9px] sm:text-[12px] font-medium text-led-green tracking-widest uppercase select-none">
+                                  Calc
+                                </span>
+                                <span
+                                  className={`text-xl sm:text-3xl font-bold font-mono select-none tabular-nums ${
+                                    calcDisplay === '??' ? 'text-led-amber led-glow' : 'text-led-green led-glow'
+                                  }`}
+                                >
+                                  {calcDisplay}
+                                </span>
+                              </motion.div>
+                            )}
+                          </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -825,7 +986,7 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
                     >
                       Pull Lever to Start
                     </motion.div>
-                  ) : showWinBanner && !allSolved && !isCelebrating ? (
+                  ) : showWinBanner && celebrationPhase !== 'revealed' ? (
                     <motion.div
                       key="win-banner"
                       className="font-bold text-xl sm:text-2xl tracking-widest uppercase select-none rainbow-text"
@@ -839,27 +1000,51 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
                   ) : showNextChallenge && !allSolved && !isCelebrating ? (
                     <motion.button
                       key="next"
-                      onClick={nextPuzzle}
+                      onClick={() => { setShowNextChallenge(false); nextPuzzle(); }}
                       className="font-bold text-black text-base sm:text-xl tracking-wider uppercase cursor-pointer select-none"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.2 }}
                     >
-                      Next Challenge
+                      Next Game ({puzzleIndex + 2}/{totalPuzzles})
                     </motion.button>
                   ) : celebrationPhase === 'revealed' ? (
-                    <motion.button
-                      key="again"
-                      onClick={handlePlayAgain}
-                      className="font-bold text-black text-sm sm:text-base tracking-wider uppercase cursor-pointer select-none"
+                    <motion.div
+                      key="complete"
+                      className="flex flex-col items-center gap-1 sm:gap-1.5 w-full"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.2 }}
                     >
-                      Play Again
-                    </motion.button>
+                      <span className="font-bold text-black text-xs sm:text-sm tracking-wider uppercase select-none">
+                        Challenge Complete!
+                      </span>
+                      <div className="flex items-center gap-1 sm:gap-2 w-full">
+                        <button
+                          onClick={handleRandomPuzzle}
+                          className="flex-1 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-bold text-white cursor-pointer hover:brightness-110 transition-colors"
+                          style={{ backgroundColor: '#820458' }}
+                        >
+                          Random puzzle
+                        </button>
+                        <button
+                          onClick={() => setShowDatePicker(true)}
+                          className="flex-1 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-bold text-white cursor-pointer hover:brightness-110 transition-colors"
+                          style={{ backgroundColor: '#398874' }}
+                        >
+                          Previous games
+                        </button>
+                        <a
+                          href="https://www.nerdlegame.com"
+                          className="flex-1 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-bold text-white cursor-pointer hover:brightness-110 transition-colors text-center"
+                          style={{ backgroundColor: 'rgba(0,0,0,0.25)' }}
+                        >
+                          Back to nerdle
+                        </a>
+                      </div>
+                    </motion.div>
                   ) : (
                     <motion.div
                       key="status"
@@ -873,10 +1058,9 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
                       <div className="flex-1 flex justify-start">
                         <button
                           onClick={() => {
-                            const order = isWord ? WORD_MODE_ORDER : NUMBER_MODE_ORDER;
                             setMode(prev => {
-                              const idx = order.indexOf(prev);
-                              return order[(idx + 1) % order.length];
+                              const idx = MODE_ORDER.indexOf(prev);
+                              return MODE_ORDER[(idx + 1) % MODE_ORDER.length];
                             });
                           }}
                           className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-slate-400 hover:border-slate-300 hover:bg-white/10 transition-colors cursor-pointer"
@@ -889,25 +1073,11 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
                         </button>
                       </div>
 
-                      {/* Center: game nav */}
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={prevPuzzle}
-                          className="p-0.5 rounded-full hover:bg-white/10 transition-colors"
-                          aria-label="Previous puzzle"
-                        >
-                          <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4 text-slate-400" />
-                        </button>
+                      {/* Center: game label */}
+                      <div className="flex items-center">
                         <span className="whitespace-nowrap">
-                          Game {puzzleIndex + 1}/{totalPuzzles}
+                          {totalPuzzles > 1 ? `Game ${puzzleIndex + 1}/${totalPuzzles}` : 'Random'}
                         </span>
-                        <button
-                          onClick={nextPuzzle}
-                          className="p-0.5 rounded-full hover:bg-white/10 transition-colors"
-                          aria-label="Next puzzle"
-                        >
-                          <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-slate-400" />
-                        </button>
                       </div>
 
                       {/* Right: solvable-in + moves */}
@@ -938,16 +1108,16 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
 
         {/* Lever assembly — centered on machine, outside overflow:hidden */}
         <div
-          className="absolute flex items-center z-[5]"
-          style={{ right: 'clamp(-40px, -3.5vw, -56px)', top: '50%', transform: 'translateY(calc(-50% - 20px))' }}
+          className="absolute flex items-center z-[15] right-[-40px] sm:right-[-60px]"
+          style={{ top: '50%', transform: 'translateY(calc(-50% - 20px))' }}
         >
           {/* 1. Big connector plate */}
           <div
-            className="border border-chrome-dark border-l-0 rounded-r-md"
+            className="border border-chrome-dark border-l-0 border-r-0 rounded-r-md"
             style={{
               width: 'clamp(18px, 3vw, 26px)',
               height: 'clamp(44px, 7vw, 64px)',
-              transform: 'translate(4px, 20px)',
+              transform: 'translateY(20px)',
               background: 'linear-gradient(180deg, #58616e 0%, #3a4250 30%, #505a6c 50%, #3a4250 70%, #58616e 100%)',
               boxShadow: '2px 0 6px rgba(0,0,0,0.3), inset -2px 0 4px rgba(255,255,255,0.1)',
             }}
@@ -957,7 +1127,7 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
             style={{
               width: 'clamp(8px, 1.5vw, 12px)',
               height: 'clamp(20px, 3.5vw, 30px)',
-              transform: 'translate(4px, 20px)',
+              transform: 'translateY(20px)',
               background: 'linear-gradient(180deg, #8a9098 0%, #62666e 30%, #747880 50%, #62666e 70%, #8a9098 100%)',
               boxShadow: '1px 2px 4px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.15)',
               borderTop: '1px solid rgba(255,255,255,0.1)',
@@ -965,8 +1135,20 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
             }}
           />
           {/* 3. Arm shaft + 4. Ball */}
-          <div className="relative" style={{ transform: 'translate(-4px, -20px)' }}>
-            <Lever phase={phase} onSpin={spin} />
+          <div className="relative sm:-ml-3.5" style={{ transform: 'translateY(-20px)' }}>
+            <Lever
+              phase={phase}
+              canPull={phase === 'ready' || phase === 'playing' || (showNextChallenge && !allSolved && !isCelebrating)}
+              onSpin={() => {
+                if (showNextChallenge && !allSolved && !isCelebrating) {
+                  setShowNextChallenge(false);
+                  pendingSpinRef.current = true;
+                  nextPuzzle();
+                } else {
+                  spin();
+                }
+              }}
+            />
           </div>
         </div>
 
@@ -976,7 +1158,7 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
           style={{
             right: 'clamp(-40px, -3.5vw, -56px)',
             bottom: '48px',
-            transform: 'translate(1px, 0)',
+            transform: 'translate(3px, 0)',
             boxShadow: '2px 2px 8px rgba(0,0,0,0.4), inset 2px 0 6px rgba(0,0,0,0.3), inset -2px 0 6px rgba(0,0,0,0.3)',
           }}
         >
@@ -1030,7 +1212,7 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
       </div>
 
       {/* Help modal */}
-      {showHelp && <HelpModal onClose={() => setShowHelp(false)} puzzleMode={puzzleMode} />}
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} onOpenDatePicker={() => setShowDatePicker(true)} />}
 
       {/* Nerdle confirm modal */}
       {showNerdleConfirm && (
@@ -1064,6 +1246,48 @@ const puzzleMode: PuzzleMode = window.location.pathname.endsWith('/w') ? 'words'
               >
                 nerdleverse home
               </a>
+              <button
+                onClick={() => { setShowNerdleConfirm(false); setShowDatePicker(true); }}
+                className="w-full text-center px-4 py-2.5 rounded-lg font-bold text-white text-base sm:text-lg tracking-wide cursor-pointer transition-colors hover:brightness-110"
+                style={{ backgroundColor: '#398874' }}
+              >
+                previous fruit nerdle games
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* Date picker modal */}
+      {showDatePicker && (
+        <motion.div
+          className="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          onClick={() => setShowDatePicker(false)}
+        >
+          <motion.div
+            className="relative bg-slate-800/95 border-2 border-chrome-dark rounded-2xl shadow-2xl mx-4 max-w-xs w-full"
+            initial={{ y: 30, scale: 0.95, opacity: 0 }}
+            animate={{ y: 0, scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 pb-0">
+              <h3 className="font-title font-bold text-lg text-white">Previous Games</h3>
+              <button
+                onClick={() => setShowDatePicker(false)}
+                className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+            <div className="flex flex-col gap-4 px-6 pt-4 pb-8 sm:px-8 sm:pb-10">
+              <p className="text-sm text-slate-400">
+                Play any fruit nerdle from 11 Feb 2026 onwards.
+              </p>
+              <CalendarPicker onChooseDay={(date) => { setShowDatePicker(false); handleChooseDay(date); }} />
             </div>
           </motion.div>
         </motion.div>

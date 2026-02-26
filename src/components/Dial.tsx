@@ -16,6 +16,7 @@ interface DialProps {
 }
 
 function formatValue(val: number | string) {
+  if (val === '') return '';
   if (val === '*') return '\u00D7';
   return String(val);
 }
@@ -153,7 +154,7 @@ export default function Dial({
         <div className="bg-white flex flex-col items-center rounded-md overflow-hidden">
           {/* Outer top (prev-2) */}
           <div
-            className="h-4 sm:h-5 flex items-center justify-center w-full overflow-hidden"
+            className="h-5 sm:h-6 flex items-center justify-center w-full overflow-hidden"
             style={{
               transform: 'perspective(200px) rotateX(50deg)',
               transformOrigin: 'bottom center',
@@ -177,7 +178,7 @@ export default function Dial({
           <div
             className="h-8 sm:h-9 flex items-center justify-center w-full overflow-hidden"
             style={{
-              transform: 'perspective(200px) rotateX(30deg)',
+              transform: 'perspective(200px) rotateX(30deg) translateY(6px)',
               transformOrigin: 'bottom center',
               marginTop: '2px',
               marginBottom: '2px',
@@ -214,7 +215,7 @@ export default function Dial({
           <div
             className="h-8 sm:h-9 flex items-center justify-center w-full overflow-hidden"
             style={{
-              transform: 'perspective(200px) rotateX(-30deg)',
+              transform: 'perspective(200px) rotateX(-30deg) translateY(-6px)',
               transformOrigin: 'top center',
               marginBottom: '2px',
             }}
@@ -234,7 +235,7 @@ export default function Dial({
 
           {/* Outer bottom (next+2) */}
           <div
-            className="h-4 sm:h-5 flex items-center justify-center w-full overflow-hidden"
+            className="h-5 sm:h-6 flex items-center justify-center w-full overflow-hidden"
             style={{
               transform: 'perspective(200px) rotateX(-50deg)',
               transformOrigin: 'top center',

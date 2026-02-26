@@ -3,11 +3,10 @@ import { X } from 'lucide-react';
 
 interface HelpModalProps {
   onClose: () => void;
-  puzzleMode: 'numbers' | 'words';
+  onOpenDatePicker: () => void;
 }
 
-export default function HelpModal({ onClose, puzzleMode }: HelpModalProps) {
-  const isWords = puzzleMode === 'words';
+export default function HelpModal({ onClose, onOpenDatePicker }: HelpModalProps) {
   return (
     <motion.div
       className="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm"
@@ -45,20 +44,14 @@ export default function HelpModal({ onClose, puzzleMode }: HelpModalProps) {
           <section>
             <h3 className="font-semibold text-led-green text-base mb-1">Goal</h3>
             <p>
-              {isWords
-                ? <>Nudge the five dials to spell the <span className="font-bold text-led-green">target word</span>. Solve it in as few moves as possible to earn more coins.</>
-                : <>Nudge the five dials to make a maths expression that equals the <span className="font-bold text-led-green">target number</span>. Solve it in as few moves as possible to earn more coins.</>
-              }
+              Nudge the five dials to make a maths expression that equals the <span className="font-bold text-led-green">target number</span>. Solve it in as few moves as possible to earn more coins.
             </p>
           </section>
 
           <section>
             <h3 className="font-semibold text-led-green text-base mb-1">The Dials</h3>
             <p>
-              {isWords
-                ? <>Five <span className="font-semibold text-white">letter</span> dials, each with 5 possible letters.</>
-                : <>Three <span className="font-semibold text-white">number</span> dials (numbers from 1 to 12) alternate with two <span className="font-semibold text-white">operator</span> dials (+, −, ×, ÷).</>
-              }
+              Three <span className="font-semibold text-white">number</span> dials (numbers from 1 to 12) alternate with two <span className="font-semibold text-white">operator</span> dials (+, −, ×, ÷).
             </p>
           </section>
 
@@ -72,33 +65,29 @@ export default function HelpModal({ onClose, puzzleMode }: HelpModalProps) {
             </p>
           </section>
 
-          {!isWords && (
-            <section>
-              <h3 className="font-semibold text-led-green text-base mb-1">Order of Operations</h3>
-              <p>
-                Standard maths rules: × and ÷ before + and −.
-              </p>
-              <div className="text-center font-mono text-xs text-slate-500 my-1">
-                e.g. 5 + 3 × 2 = 5 + 6 = 11, not 16
-              </div>
-            </section>
-          )}
+          <section>
+            <h3 className="font-semibold text-led-green text-base mb-1">Order of Operations</h3>
+            <p>
+              Standard maths rules: × and ÷ before + and −.
+            </p>
+            <div className="text-center font-mono text-xs text-slate-500 my-1">
+              e.g. 5 + 3 × 2 = 5 + 6 = 11, not 16
+            </div>
+          </section>
 
           <section>
             <h3 className="font-semibold text-led-green text-base mb-1">Difficulty Modes</h3>
             <div className="space-y-1.5">
               <p>
                 <span className="inline-block w-2 h-2 rounded-full bg-green-400 mr-1.5 align-middle" />
-                <span className="font-semibold text-green-400">Easy</span> — {isWords ? 'correct letters' : 'all dials'} lock in place
+                <span className="font-semibold text-green-400">Easy</span> — all dials lock in place
                 when correct. Payout reduced by 2.
               </p>
-              {!isWords && (
-                <p>
-                  <span className="inline-block w-2 h-2 rounded-full bg-yellow-400 mr-1.5 align-middle" />
-                  <span className="font-semibold text-yellow-400">Medium</span> — operator dials
-                  lock when correct. Payout reduced by 1.
-                </p>
-              )}
+              <p>
+                <span className="inline-block w-2 h-2 rounded-full bg-yellow-400 mr-1.5 align-middle" />
+                <span className="font-semibold text-yellow-400">Medium</span> — operator dials
+                lock when correct. Payout reduced by 1.
+              </p>
               <p>
                 <span className="inline-block w-2 h-2 rounded-full bg-red-400 mr-1.5 align-middle" />
                 <span className="font-semibold text-red-400">Hard</span> — no locks, no hints.
@@ -125,7 +114,7 @@ export default function HelpModal({ onClose, puzzleMode }: HelpModalProps) {
                   <tr className="text-slate-500">
                     <th className="text-left font-normal pb-1.5">Moves</th>
                     <th className="text-center font-normal pb-1.5 text-red-400">Hard</th>
-                    {!isWords && <th className="text-center font-normal pb-1.5 text-yellow-400">Medium</th>}
+                    <th className="text-center font-normal pb-1.5 text-yellow-400">Medium</th>
                     <th className="text-center font-normal pb-1.5 text-green-400">Easy</th>
                   </tr>
                 </thead>
@@ -133,31 +122,31 @@ export default function HelpModal({ onClose, puzzleMode }: HelpModalProps) {
                   <tr>
                     <td className="text-slate-400 font-normal py-0.5">Par</td>
                     <td className="text-center">ñ5</td>
-                    {!isWords && <td className="text-center">ñ4</td>}
+                    <td className="text-center">ñ4</td>
                     <td className="text-center">ñ3</td>
                   </tr>
                   <tr>
                     <td className="text-slate-400 font-normal py-0.5">+1–2</td>
                     <td className="text-center">ñ4</td>
-                    {!isWords && <td className="text-center">ñ3</td>}
+                    <td className="text-center">ñ3</td>
                     <td className="text-center">ñ2</td>
                   </tr>
                   <tr>
                     <td className="text-slate-400 font-normal py-0.5">+3–5</td>
                     <td className="text-center">ñ3</td>
-                    {!isWords && <td className="text-center">ñ2</td>}
+                    <td className="text-center">ñ2</td>
                     <td className="text-center">ñ1</td>
                   </tr>
                   <tr>
                     <td className="text-slate-400 font-normal py-0.5">+6–9</td>
                     <td className="text-center">ñ2</td>
-                    {!isWords && <td className="text-center">ñ1</td>}
+                    <td className="text-center">ñ1</td>
                     <td className="text-center">ñ1</td>
                   </tr>
                   <tr>
                     <td className="text-slate-400 font-normal py-0.5">10+</td>
                     <td className="text-center">ñ1</td>
-                    {!isWords && <td className="text-center">ñ1</td>}
+                    <td className="text-center">ñ1</td>
                     <td className="text-center">ñ1</td>
                   </tr>
                 </tbody>
@@ -173,6 +162,22 @@ export default function HelpModal({ onClose, puzzleMode }: HelpModalProps) {
             <p>
               Stuck? Pull the lever again for a new starting position. Same puzzle, different
               starting dials. A re-spin counts as one move.
+            </p>
+          </section>
+
+          <section>
+            <h3 className="font-semibold text-led-green text-base mb-1">Previous Games</h3>
+            <p>
+              A new set of 5 puzzles is released every day. You can replay any previous day's
+              challenges by visiting <span className="font-mono text-slate-400">/YYYYMMDD</span> in
+              the URL (e.g. <span className="font-mono text-slate-400">/20260211</span> for Day 1),
+              or use the{' '}
+              <button
+                onClick={() => { onClose(); onOpenDatePicker(); }}
+                className="text-led-green underline underline-offset-2 cursor-pointer hover:text-white transition-colors"
+              >
+                date picker
+              </button>.
             </p>
           </section>
 

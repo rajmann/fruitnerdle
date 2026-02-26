@@ -1,15 +1,20 @@
 export type Operator = '+' | '-' | '*' | '/';
 
 export interface DialConfig {
-  type: 'number' | 'operator' | 'letter';
+  type: 'number' | 'operator';
   values: (number | string)[];
 }
 
 export interface FruitPuzzle {
   id: string;
-  target: number | string;
+  target: number;
   dials: [DialConfig, DialConfig, DialConfig, DialConfig, DialConfig];
   solutions: number[][];
+}
+
+export interface DaySet {
+  day: number;
+  puzzles: FruitPuzzle[];
 }
 
 export interface DialState {

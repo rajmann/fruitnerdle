@@ -1,10 +1,5 @@
-import type { FruitPuzzle, Operator } from '@/types/puzzle';
-import { evaluateExpression, evaluateWord } from './evaluate';
-
-/** Check if a puzzle is a word puzzle (all letter dials). */
-export function isWordPuzzle(puzzle: FruitPuzzle): boolean {
-  return puzzle.dials[0].type === 'letter';
-}
+import type { FruitPuzzle, DialConfig, Operator } from '@/types/puzzle';
+import { evaluateExpression } from './evaluate';
 
 /**
  * Circular distance between two positions on a dial of given size.
@@ -15,16 +10,49 @@ export function circularDistance(a: number, b: number, size: number): number {
 }
 
 /**
- * Total Manhattan distance between two configurations across all 5 dials.
+ * Effective distance between two positions on a dial, skipping blank values.
+ * Simulates actual nudge behavior where blanks are auto-skipped (free).
+ * For dials with no blanks, equivalent to circularDistance.
+ */
+export function effectiveCircularDistance(
+  a: number,
+  b: number,
+  values: (number | string)[],
+): number {
+  if (a === b) return 0;
+  const size = values.length;
+
+  // Count forward hops (only non-blank positions count as a move)
+  let forward = 0;
+  let pos = a;
+  while (pos !== b) {
+    pos = (pos + 1) % size;
+    if (values[pos] !== '') forward++;
+  }
+
+  // Count backward hops
+  let backward = 0;
+  pos = a;
+  while (pos !== b) {
+    pos = (pos - 1 + size) % size;
+    if (values[pos] !== '') backward++;
+  }
+
+  return Math.min(forward, backward);
+}
+
+/**
+ * Total Manhattan distance between two configurations across all 5 dials,
+ * accounting for blank positions on operator dials.
  */
 export function configDistance(
   config: number[],
   solution: number[],
-  dialSizes: number[],
+  dials: DialConfig[],
 ): number {
   let total = 0;
   for (let i = 0; i < 5; i++) {
-    total += circularDistance(config[i], solution[i], dialSizes[i]);
+    total += effectiveCircularDistance(config[i], solution[i], dials[i].values);
   }
   return total;
 }
@@ -35,21 +63,18 @@ export function configDistance(
 export function minDistanceToAnySolution(
   config: number[],
   solutions: number[][],
-  dialSizes: number[],
+  dials: DialConfig[],
 ): number {
   return Math.min(
-    ...solutions.map(sol => configDistance(config, sol, dialSizes))
+    ...solutions.map(sol => configDistance(config, sol, dials))
   );
 }
 
 /**
  * Evaluate a dial configuration and return the result (or null).
  */
-function evaluateConfig(puzzle: FruitPuzzle, indices: number[]): number | string | null {
+function evaluateConfig(puzzle: FruitPuzzle, indices: number[]): number | null {
   const values = indices.map((idx, i) => puzzle.dials[i].values[idx]);
-  if (isWordPuzzle(puzzle)) {
-    return evaluateWord(values);
-  }
   return evaluateExpression(
     values[0] as number,
     values[1] as string as Operator,
@@ -63,7 +88,8 @@ function evaluateConfig(puzzle: FruitPuzzle, indices: number[]): number | string
  * Check that no visible preview row (uniform offsets -2, -1, +1, +2)
  * evaluates to the target. Prevents the answer being visible in preview rows.
  */
-function previewRowsAreSafe(puzzle: FruitPuzzle, candidate: number[], dialSizes: number[]): boolean {
+function previewRowsAreSafe(puzzle: FruitPuzzle, candidate: number[]): boolean {
+  const dialSizes = puzzle.dials.map(d => d.values.length);
   for (const offset of [-2, -1, 1, 2]) {
     const shifted = candidate.map((idx, i) =>
       ((idx + offset) % dialSizes[i] + dialSizes[i]) % dialSizes[i]
@@ -76,25 +102,34 @@ function previewRowsAreSafe(puzzle: FruitPuzzle, candidate: number[], dialSizes:
 }
 
 /**
+ * Non-blank indices for each dial (precomputed for spin stop generation).
+ */
+function validIndicesPerDial(puzzle: FruitPuzzle): number[][] {
+  return puzzle.dials.map(d =>
+    d.values.map((v, i) => ({ v, i })).filter(x => x.v !== '').map(x => x.i)
+  );
+}
+
+/**
  * Find a valid random spin stop position that is at least minDistance
- * moves from any solution, does not equal the target, and whose
- * visible preview rows also don't reveal the answer.
+ * moves from any solution, does not equal the target, does not land
+ * on blank positions, and whose preview rows don't reveal the answer.
  */
 export function findValidSpinStop(puzzle: FruitPuzzle, minDistance = 3): number[] {
-  const dialSizes = puzzle.dials.map(d => d.values.length);
+  const validIndices = validIndicesPerDial(puzzle);
   const MAX_ATTEMPTS = 500;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const candidate = dialSizes.map(size => Math.floor(Math.random() * size));
+    const candidate = validIndices.map(vi => vi[Math.floor(Math.random() * vi.length)]);
 
-    const minDist = minDistanceToAnySolution(candidate, puzzle.solutions, dialSizes);
+    const minDist = minDistanceToAnySolution(candidate, puzzle.solutions, puzzle.dials);
     if (minDist < minDistance) continue;
 
     // Verify center position doesn't equal the target
     if (evaluateConfig(puzzle, candidate) === puzzle.target) continue;
 
     // Verify preview rows don't reveal the answer
-    if (!previewRowsAreSafe(puzzle, candidate, dialSizes)) continue;
+    if (!previewRowsAreSafe(puzzle, candidate)) continue;
 
     return candidate;
   }
@@ -104,30 +139,32 @@ export function findValidSpinStop(puzzle: FruitPuzzle, minDistance = 3): number[
 }
 
 function findSpinStopExhaustive(puzzle: FruitPuzzle, minDistance: number): number[] {
-  const dialSizes = puzzle.dials.map(d => d.values.length);
-  const indices = [0, 0, 0, 0, 0];
+  const validIndices = validIndicesPerDial(puzzle);
 
-  while (true) {
-    const dist = minDistanceToAnySolution(indices, puzzle.solutions, dialSizes);
+  // Build all valid combinations using only non-blank indices
+  const stack: number[][] = [[]];
+  const candidates: number[][] = [];
+
+  while (stack.length > 0) {
+    const partial = stack.pop()!;
+    const depth = partial.length;
+    if (depth === 5) {
+      candidates.push(partial);
+      continue;
+    }
+    for (const idx of validIndices[depth]) {
+      stack.push([...partial, idx]);
+    }
+  }
+
+  for (const indices of candidates) {
+    const dist = minDistanceToAnySolution(indices, puzzle.solutions, puzzle.dials);
     if (dist >= minDistance) {
       if (evaluateConfig(puzzle, indices) !== puzzle.target
-        && previewRowsAreSafe(puzzle, indices, dialSizes)) {
-        return [...indices];
+        && previewRowsAreSafe(puzzle, indices)) {
+        return indices;
       }
     }
-
-    // Increment odometer-style
-    let carry = true;
-    for (let i = 4; i >= 0 && carry; i--) {
-      indices[i]++;
-      if (indices[i] >= dialSizes[i]) {
-        indices[i] = 0;
-      } else {
-        carry = false;
-      }
-    }
-
-    if (carry) break;
   }
 
   throw new Error('No valid spin stop position found');

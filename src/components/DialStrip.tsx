@@ -13,6 +13,7 @@ interface DialStripProps {
 }
 
 function formatValue(val: number | string): string {
+  if (val === '') return '';
   if (val === '*') return '\u00D7';
   return String(val);
 }

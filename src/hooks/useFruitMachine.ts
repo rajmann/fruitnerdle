@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import type { FruitPuzzle, DialState, GamePhase, Operator } from '@/types/puzzle';
-import { evaluateExpression, evaluateWord } from '@/lib/evaluate';
-import { findValidSpinStop, minDistanceToAnySolution, isWordPuzzle } from '@/lib/puzzleEngine';
+import { evaluateExpression } from '@/lib/evaluate';
+import { findValidSpinStop, minDistanceToAnySolution } from '@/lib/puzzleEngine';
 
 /** Compute a safe resting position for preview rows in ready state. */
 function computeRestingPosition(puzzle: FruitPuzzle): DialState[] {
@@ -18,7 +18,7 @@ export interface UseFruitMachineReturn {
   nudgeCount: number;
   minMoves: number;
   spinStopIndices: number[];
-  currentResult: number | string | null;
+  currentResult: number | null;
   isCorrect: boolean;
   puzzleIndex: number;
   totalPuzzles: number;
@@ -37,11 +37,8 @@ function getDialValues(puzzle: FruitPuzzle, dialStates: DialState[]) {
   return dialStates.map((ds, i) => puzzle.dials[i].values[ds.currentIndex]);
 }
 
-function evaluate(puzzle: FruitPuzzle, dialStates: DialState[]): number | string | null {
+function evaluate(puzzle: FruitPuzzle, dialStates: DialState[]): number | null {
   const values = getDialValues(puzzle, dialStates);
-  if (isWordPuzzle(puzzle)) {
-    return evaluateWord(values);
-  }
   return evaluateExpression(
     values[0] as number,
     values[1] as string as Operator,
@@ -62,9 +59,25 @@ export function useFruitMachine(puzzles: FruitPuzzle[]): UseFruitMachineReturn {
     () => computeRestingPosition(puzzles[0])
   );
 
-  const puzzle = puzzles[puzzleIndex];
   const winTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasSpunRef = useRef(false);
+
+  // Reset all state when puzzle set changes (synchronous during render)
+  const [prevPuzzles, setPrevPuzzles] = useState(puzzles);
+  if (puzzles !== prevPuzzles) {
+    setPrevPuzzles(puzzles);
+    setPuzzleIndex(0);
+    setPhase('ready');
+    setMoveCount(0);
+    setNudgeCount(0);
+    setSpinStopIndices([0, 0, 0, 0, 0]);
+    setMinMoves(0);
+    setDialStates(computeRestingPosition(puzzles[0]));
+    if (winTimerRef.current) { clearTimeout(winTimerRef.current); winTimerRef.current = null; }
+    hasSpunRef.current = false;
+  }
+
+  const puzzle = puzzles[puzzleIndex];
 
   const currentResult = phase === 'playing' || phase === 'won'
     ? evaluate(puzzle, dialStates)
@@ -73,8 +86,7 @@ export function useFruitMachine(puzzles: FruitPuzzle[]): UseFruitMachineReturn {
 
   const spin = useCallback(() => {
     const stopIndices = findValidSpinStop(puzzle);
-    const dialSizes = puzzle.dials.map(d => d.values.length);
-    const minDist = minDistanceToAnySolution(stopIndices, puzzle.solutions, dialSizes);
+    const minDist = minDistanceToAnySolution(stopIndices, puzzle.solutions, puzzle.dials);
     setSpinStopIndices(stopIndices);
     setMinMoves(minDist);
     if (hasSpunRef.current) {
@@ -94,12 +106,22 @@ export function useFruitMachine(puzzles: FruitPuzzle[]): UseFruitMachineReturn {
 
     setDialStates(prev => {
       const newStates = [...prev];
-      const dialSize = puzzle.dials[dialIndex].values.length;
+      const dial = puzzle.dials[dialIndex];
+      const dialSize = dial.values.length;
       const current = newStates[dialIndex].currentIndex;
 
-      const newIndex = direction === 'up'
+      let newIndex = direction === 'up'
         ? (current - 1 + dialSize) % dialSize
         : (current + 1) % dialSize;
+
+      // Auto-skip blank positions (free, no extra move cost)
+      let safety = 0;
+      while (dial.values[newIndex] === '' && safety < dialSize) {
+        newIndex = direction === 'up'
+          ? (newIndex - 1 + dialSize) % dialSize
+          : (newIndex + 1) % dialSize;
+        safety++;
+      }
 
       newStates[dialIndex] = { currentIndex: newIndex, lastNudgeDirection: direction };
       return newStates;
@@ -129,15 +151,15 @@ export function useFruitMachine(puzzles: FruitPuzzle[]): UseFruitMachineReturn {
       hasSpunRef.current = false;
       setDialStates(computeRestingPosition(puzzles[index]));
     }
-  }, []);
+  }, [puzzles]);
 
   const nextPuzzle = useCallback(() => {
     selectPuzzle((puzzleIndex + 1) % puzzles.length);
-  }, [puzzleIndex, selectPuzzle]);
+  }, [puzzleIndex, puzzles.length, selectPuzzle]);
 
   const prevPuzzle = useCallback(() => {
     selectPuzzle((puzzleIndex - 1 + puzzles.length) % puzzles.length);
-  }, [puzzleIndex, selectPuzzle]);
+  }, [puzzleIndex, puzzles.length, selectPuzzle]);
 
   const resetPuzzle = useCallback(() => {
     if (winTimerRef.current) { clearTimeout(winTimerRef.current); winTimerRef.current = null; }
