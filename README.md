@@ -71,11 +71,20 @@ The generator:
 
 There is also a legacy TypeScript generator at `scripts/generatePuzzles.ts` (run via `npm run generate-puzzles`), but the Python version is preferred as it supports the tiered difficulty system and custom operator configurations.
 
-## Development
+## Running Locally
+
+Requires Node.js 18+.
 
 ```bash
-npm install
-npm run dev          # Vite dev server at localhost:5173
+npm install          # install dependencies
+npm run dev          # start Vite dev server at http://localhost:5173
+```
+
+To test a production build:
+
+```bash
+npm run build        # TypeScript check + Vite production build -> dist/
+npm run preview      # serve dist/ locally at http://localhost:4173
 ```
 
 ## Deployment

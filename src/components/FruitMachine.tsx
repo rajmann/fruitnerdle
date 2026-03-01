@@ -624,7 +624,7 @@ export default function FruitMachine() {
 
   return (
     <div className="min-h-screen flex flex-col sm:items-center px-2 sm:px-6 py-1 sm:py-3 bg-gradient-to-b from-slate-900 via-machine-body to-slate-900">
-      <div className="flex flex-row justify-center w-full">
+      <div className="flex flex-row justify-center w-full" style={{ touchAction: 'none' }}>
         {/* Left desktop ad */}
         <div id="nerdlegame_D_x1" className="desktopSideAd mr-2 ml-2" />
 
